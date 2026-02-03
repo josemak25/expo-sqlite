@@ -1,0 +1,62 @@
+import type { Adapter, Job } from '../types';
+
+/**
+ * An in-memory storage adapter for the queue.
+ * Useful for testing and non-persistent queues.
+ * @implements {Adapter}
+ */
+export class MemoryAdapter implements Adapter {
+  /** Map to store jobs in memory. */
+  private jobs: Map<string, Job<unknown>> = new Map();
+
+  /**
+   * Initializes the memory adapter.
+   * No-op for in-memory storage.
+   */
+  async init(): Promise<void> {
+    // No initialization needed for memory adapter
+  }
+
+  async addJob<T = unknown>(job: Job<T>): Promise<void> {
+    // Cast to Job<unknown> to store in the generic map
+    this.jobs.set(job.id, job as unknown as Job<unknown>);
+  }
+
+  /**
+   * Retrieves concurrent jobs from memory.
+   * Filters for inactive and non-failed jobs, sorted by priority and creation time.
+   */
+  async getConcurrentJobs(): Promise<Job<unknown>[]> {
+    return Array.from(this.jobs.values())
+      .filter((job) => !job.active && !job.failed)
+      .sort((a, b) => {
+        // Sort by priority DESC, then created ASC
+        if (a.priority !== b.priority) {
+          return b.priority - a.priority;
+        }
+        return new Date(a.created).getTime() - new Date(b.created).getTime();
+      });
+  }
+
+  async updateJob<T = unknown>(job: Job<T>): Promise<void> {
+    if (this.jobs.has(job.id)) {
+      this.jobs.set(job.id, job as unknown as Job<unknown>);
+    }
+  }
+
+  async removeJob<T = unknown>(job: Job<T>): Promise<void> {
+    this.jobs.delete(job.id);
+  }
+
+  async getJob(id: string): Promise<Job<unknown> | null> {
+    return this.jobs.get(id) || null;
+  }
+
+  async getJobs(): Promise<Job<unknown>[]> {
+    return Array.from(this.jobs.values());
+  }
+
+  async deleteAll(): Promise<void> {
+    this.jobs.clear();
+  }
+}
