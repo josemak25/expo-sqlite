@@ -3,14 +3,17 @@ import type { Adapter, Job } from '../types';
 
 export class SQLiteAdapter implements Adapter {
   private db: SQLite.SQLiteDatabase;
-  private tableName: string = 'queue_jobs';
+  private tableName: string;
+  private initPromise: Promise<void>;
 
-  constructor(dbName: string = 'queue.db') {
+  constructor(dbName: string = 'queue.db', tableName: string = 'queue_jobs') {
+    this.tableName = tableName;
     // Synchronously open the loop, standard for expo-sqlite now
     this.db = SQLite.openDatabaseSync(dbName);
+    this.initPromise = this.init();
   }
 
-  async init(): Promise<void> {
+  private async init(): Promise<void> {
     await this.db.execAsync(`
       CREATE TABLE IF NOT EXISTS ${this.tableName} (
         id TEXT PRIMARY KEY NOT NULL,
@@ -27,6 +30,7 @@ export class SQLiteAdapter implements Adapter {
   }
 
   async addJob<T = unknown>(job: Job<T>): Promise<void> {
+    await this.initPromise;
     await this.db.runAsync(
       `INSERT OR REPLACE INTO ${this.tableName} (id, name, payload, data, priority, active, timeout, created, failed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
@@ -47,6 +51,7 @@ export class SQLiteAdapter implements Adapter {
   }
 
   async getConcurrentJobs(): Promise<Job<unknown>[]> {
+    await this.initPromise;
     // Logic similar to react-native-queue to fetch concurrent jobs
     // We prioritize by priority DESC, then created ASC
     const result = await this.db.getAllAsync<any>(
@@ -57,6 +62,7 @@ export class SQLiteAdapter implements Adapter {
   }
 
   async updateJob<T = unknown>(job: Job<T>): Promise<void> {
+    await this.initPromise;
     await this.db.runAsync(
       `UPDATE ${this.tableName} SET active = ?, failed = ?, data = ? WHERE id = ?`,
       [
@@ -67,17 +73,20 @@ export class SQLiteAdapter implements Adapter {
           metaData: job.metaData,
         }),
         job.id,
+        job.id,
       ]
     );
   }
 
   async removeJob<T = unknown>(job: Job<T>): Promise<void> {
+    await this.initPromise;
     await this.db.runAsync(`DELETE FROM ${this.tableName} WHERE id = ?`, [
       job.id,
     ]);
   }
 
   async getJob(id: string): Promise<Job<unknown> | null> {
+    await this.initPromise;
     const result = await this.db.getAllAsync<any>(
       `SELECT * FROM ${this.tableName} WHERE id = ?`,
       [id]
@@ -90,6 +99,7 @@ export class SQLiteAdapter implements Adapter {
   }
 
   async getJobs(): Promise<Job<unknown>[]> {
+    await this.initPromise;
     const result = await this.db.getAllAsync<any>(
       `SELECT * FROM ${this.tableName}`
     );
@@ -97,6 +107,7 @@ export class SQLiteAdapter implements Adapter {
   }
 
   async deleteAll(): Promise<void> {
+    await this.initPromise;
     await this.db.runAsync(`DELETE FROM ${this.tableName}`);
   }
 

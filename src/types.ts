@@ -60,14 +60,10 @@ export interface QueueOptions {
  */
 export interface Adapter {
   /**
-   * Initialize the storage (e.g., create tables).
-   */
-  init(): Promise<void>;
-
-  /**
    * Add a new job to the storage.
    * @param job - The job to add.
    */
+
   addJob<T = unknown>(job: Job<T>): Promise<void>;
 
   /**

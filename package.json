@@ -10,6 +10,16 @@
       "types": "./lib/typescript/src/index.d.ts",
       "default": "./lib/module/index.js"
     },
+    "./sqlite": {
+      "source": "./src/adapters/sqlite.ts",
+      "types": "./lib/typescript/src/adapters/sqlite.d.ts",
+      "default": "./lib/module/adapters/sqlite.js"
+    },
+    "./async-storage": {
+      "source": "./src/adapters/async-storage.ts",
+      "types": "./lib/typescript/src/adapters/async-storage.d.ts",
+      "default": "./lib/module/adapters/async-storage.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -78,11 +88,23 @@
     "react-native-builder-bob": "^0.40.17",
     "release-it": "^19.0.4",
     "ts-jest": "^29.4.6",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "expo-sqlite": "^16.0.10",
+    "@react-native-async-storage/async-storage": "^2.2.0"
   },
   "peerDependencies": {
     "react": "*",
-    "react-native": "*"
+    "react-native": "*",
+    "expo-sqlite": "*",
+    "@react-native-async-storage/async-storage": "*"
+  },
+  "peerDependenciesMeta": {
+    "expo-sqlite": {
+      "optional": true
+    },
+    "@react-native-async-storage/async-storage": {
+      "optional": true
+    }
   },
   "workspaces": [
     "example"
@@ -144,7 +166,7 @@
   },
   "dependencies": {
     "@types/uuid": "^11.0.0",
-    "expo-sqlite": "^16.0.10",
+    "eventemitter3": "^5.0.4",
     "uuid": "^13.0.0"
   }
 }

@@ -1,5 +1,6 @@
 import type { Adapter, Job, QueueOptions, WorkerOptions } from './types';
 import { Worker } from './worker';
+import { MemoryAdapter } from './adapters/memory';
 import { v4 as uuidv4 } from 'uuid';
 import { EventEmitter } from 'eventemitter3';
 
@@ -16,21 +17,13 @@ export class Queue extends EventEmitter {
 
   /**
    * Creates a new Queue instance.
-   * @param adapter - The storage adapter to use for persisting jobs.
+   * @param adapter - The storage adapter to use. Defaults to MemoryAdapter (non-persistent).
    * @param options - Configuration options for the queue.
    */
-  constructor(adapter: Adapter, options: QueueOptions = {}) {
+  constructor(adapter?: Adapter, options: QueueOptions = {}) {
     super();
-    this.adapter = adapter;
+    this.adapter = adapter || new MemoryAdapter();
     this.concurrency = options.concurrency || 1;
-  }
-
-  /**
-   * Initializes the queue. Must be called before adding jobs or starting processing.
-   * This delegates initialization to the storage adapter (e.g., creating tables).
-   */
-  async init() {
-    await this.adapter.init();
   }
 
   /**

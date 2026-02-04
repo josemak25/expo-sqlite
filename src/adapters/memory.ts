@@ -9,14 +9,6 @@ export class MemoryAdapter implements Adapter {
   /** Map to store jobs in memory. */
   private jobs: Map<string, Job<unknown>> = new Map();
 
-  /**
-   * Initializes the memory adapter.
-   * No-op for in-memory storage.
-   */
-  async init(): Promise<void> {
-    // No initialization needed for memory adapter
-  }
-
   async addJob<T = unknown>(job: Job<T>): Promise<void> {
     // Cast to Job<unknown> to store in the generic map
     this.jobs.set(job.id, job as unknown as Job<unknown>);
