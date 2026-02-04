@@ -77,7 +77,7 @@ export interface Adapter {
   /**
    * Retrieve a batch of jobs to process concurrently.
    */
-  getConcurrentJobs(): Promise<Job<unknown>[]>;
+  getConcurrentJobs(limit?: number): Promise<Job<unknown>[]>;
 
   /**
    * Update an existing job in the storage.
@@ -106,4 +106,29 @@ export interface Adapter {
    * Delete all jobs from the storage.
    */
   deleteAll(): Promise<void>;
+}
+
+/**
+ * Represents the raw database row structure for a job in SQLite.
+ * This matches the schema defined in the SQL CREATE TABLE statement.
+ */
+export interface JobRow {
+  /** The UUID of the job. */
+  id: string;
+  /** The job name/type. */
+  name: string;
+  /** The job payload (serialized JSON). */
+  payload: string;
+  /** Additional metadata (attempts, settings) (serialized JSON). */
+  data: string;
+  /** Priority level. */
+  priority: number;
+  /** Active status (0 or 1). */
+  active: number;
+  /** Timeout in milliseconds. */
+  timeout: number;
+  /** Creation timestamp (ISO string). */
+  created: string;
+  /** Failure timestamp (ISO string) or null. */
+  failed: string | null;
 }

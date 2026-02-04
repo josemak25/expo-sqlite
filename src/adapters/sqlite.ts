@@ -1,5 +1,5 @@
 import * as SQLite from 'expo-sqlite';
-import type { Adapter, Job } from '../types';
+import type { Adapter, Job, JobRow } from '../types';
 
 export class SQLiteAdapter implements Adapter {
   private db: SQLite.SQLiteDatabase;
@@ -55,17 +55,38 @@ export class SQLiteAdapter implements Adapter {
     );
   }
 
-  async getConcurrentJobs(): Promise<Job<unknown>[]> {
+  async getConcurrentJobs(limit: number = 1): Promise<Job<unknown>[]> {
     await this.initPromise;
-    // Logic similar to react-native-queue to fetch concurrent jobs
-    // We prioritize by priority DESC, then created ASC
-    const result = await this.db.getAllAsync<any>(
-      `SELECT * FROM ${this.tableName} WHERE active = 0 ORDER BY priority DESC, created ASC`
-    );
 
-    return result
-      .map((row) => this.mapRowToJob(row))
-      .filter((job) => job.attempts < job.maxAttempts);
+    let jobs: Job<unknown>[] = [];
+
+    // Use an EXCLUSIVE transaction.
+    // 1. SELECT items that are currently idle (active=0).
+    // 2. Immediately mark them as active=1 within the same transaction lock.
+    // This guarantees that no other thread/process can read these same rows
+    // before we have claimed them, preventing double-processing.
+    await this.db.withExclusiveTransactionAsync(async (tx) => {
+      const result = await tx.getAllAsync<JobRow>(
+        `SELECT * FROM ${this.tableName} WHERE active = 0 ORDER BY priority DESC, created ASC LIMIT ?`,
+        [limit]
+      );
+
+      const mappedJobs = result
+        .map((row) => this.mapRowToJob(row))
+        .filter((job) => job.attempts < job.maxAttempts);
+
+      if (mappedJobs.length > 0) {
+        // Mark all claimed jobs as active=1
+        const ids = mappedJobs.map((j) => `'${j.id}'`).join(',');
+        await tx.runAsync(
+          `UPDATE ${this.tableName} SET active = 1 WHERE id IN (${ids})`
+        );
+      }
+
+      jobs = mappedJobs;
+    });
+
+    return jobs;
   }
 
   async updateJob<T = unknown>(job: Job<T>): Promise<void> {
