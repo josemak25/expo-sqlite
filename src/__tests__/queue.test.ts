@@ -173,7 +173,8 @@ describe('Queue', () => {
       await queue.start();
 
       // Give it time to process
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      jest.advanceTimersByTime(100);
+      await flushPromises();
 
       // Verify the worker was called (job was recovered and processed)
       expect(workerFn).toHaveBeenCalled();
