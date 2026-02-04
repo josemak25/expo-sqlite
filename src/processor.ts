@@ -8,6 +8,7 @@ export class JobProcessor {
   private concurrency: number;
   private isConnected: boolean = true;
   private unsubscribeNetInfo: (() => void) | null = null;
+  private pausedJobNames: Set<string> = new Set();
 
   constructor(
     private adapter: Adapter,
@@ -63,6 +64,27 @@ export class JobProcessor {
     }
   }
 
+  /**
+   * Pauses processing of a specific job type.
+   * @param name - The name of the job to pause.
+   */
+  pauseJob(name: string) {
+    this.pausedJobNames.add(name);
+  }
+
+  /**
+   * Resumes processing of a specific job type.
+   * @param name - The name of the job to resume.
+   */
+  resumeJob(name: string) {
+    if (this.pausedJobNames.delete(name)) {
+      // If we were active, trigger a process loop to pick up newly resumed jobs
+      if (this.status === 'active') {
+        this.process();
+      }
+    }
+  }
+
   private async process() {
     if (this.status === 'inactive') return;
 
@@ -88,6 +110,11 @@ export class JobProcessor {
     for (const job of jobs) {
       if (this.runningJobs >= this.concurrency) {
         break;
+      }
+
+      // Check if this job type is paused
+      if (this.pausedJobNames.has(job.name)) {
+        continue;
       }
 
       // 1. Check TTL (Hard Expiry)

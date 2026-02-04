@@ -63,6 +63,20 @@ export interface QueueOptions {
 }
 
 /**
+ * Events emitted by the Queue.
+ */
+export interface QueueEvents {
+  /** Fired when a job execution starts. */
+  start: [job: Job<any>];
+  /** Fired when a job completes successfully. */
+  success: [job: Job<any>, result?: any];
+  /** Fired when a job fails (might be retried). */
+  failure: [job: Job<any>, error: Error];
+  /** Fired when a job has exhausted all retries. */
+  failed: [job: Job<any>, error: Error];
+}
+
+/**
  * Interface for Storage Adapters.
  * Adapters are responsible for persisting jobs and retrieving them.
  */
@@ -101,6 +115,13 @@ export interface Adapter {
    * Retrieve all jobs in the storage.
    */
   getJobs(): Promise<Job<unknown>[]>;
+
+  /**
+   * Optional: Move a job to the Dead Letter Queue.
+   * Fired when a job exceeds maxAttempts.
+   * @param job - The job to move to DLQ.
+   */
+  moveToDLQ?(job: Job<any>): Promise<void>;
 
   /**
    * Delete all jobs from the storage.

@@ -1,7 +1,13 @@
-import type { Adapter, Job, QueueOptions, WorkerOptions } from './types';
+import type {
+  Adapter,
+  Job,
+  QueueEvents,
+  QueueOptions,
+  WorkerOptions,
+} from './types';
 import { MemoryAdapter } from './adapters/memory';
 import { v4 as uuidv4 } from 'uuid';
-import { EventEmitter } from 'eventemitter3';
+import EventEmitter from 'eventemitter3';
 import { JobRegistry } from './registry';
 import { JobExecutor } from './executor';
 import { JobProcessor } from './processor';
@@ -16,7 +22,7 @@ import { JobProcessor } from './processor';
  * - JobExecutor: Execution details
  * - Adapter: Storage
  */
-export class Queue extends EventEmitter {
+export class Queue extends EventEmitter<QueueEvents> {
   private adapter: Adapter;
   private registry: JobRegistry;
   private executor: JobExecutor;
@@ -124,5 +130,19 @@ export class Queue extends EventEmitter {
    */
   stop() {
     this.processor.stop();
+  }
+
+  /**
+   * Pauses execution of jobs with the given name.
+   */
+  pauseJob(name: string) {
+    this.processor.pauseJob(name);
+  }
+
+  /**
+   * Resumes execution of jobs with the given name.
+   */
+  resumeJob(name: string) {
+    this.processor.resumeJob(name);
   }
 }
