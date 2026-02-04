@@ -2,6 +2,8 @@ This document outlines the planned improvements for `expo-queue`, prioritized by
 
 For a detailed analysis of the current architecture and its comparison to industrial systems, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
+To view specific actionable tasks and their progress, visit the [Backlog](./BACKLOG.md). If you'd like to contribute, please read the [Contributing Guide](./CONTRIBUTING.md).
+
 ## 🏗️ High Priority: Reliability & Core Performance
 
 - [ ] **Atomic Job Claiming**: Move from "check then act" to atomic "claim" operations in adapters to prevent race conditions.
