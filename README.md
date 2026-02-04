@@ -1,234 +1,169 @@
 # expo-queue
 
-A robust, flexible job queue system for Expo and React Native apps.
+A robust, flexible, and type-safe job queue system for Expo and React Native apps. Designed for reliability, memory efficiency, and high developer experience.
 
-## Features
+## ✨ Features
 
 - 🎯 **Storage Agnostic**: switch between In-Memory, AsyncStorage, SQLite, or Custom adapters.
-- 🔄 **Lifecycle Events**: `start`, `success`, `failure`, `complete` events.
-- 🚦 **Concurrency**: Global and per-worker concurrency limits.
-- 🏗 **Type Safe**: First-class TypeScript support with Generics.
-- 📱 **Expo Compatible**: Works seamlessly with Expo and standard React Native.
+- 🏗 **Modular Architecture**: Decoupled Registry, Processor, Executor, and Store.
+- 🏗 **Strictly Type Safe**: First-class TypeScript support with Generics for payloads and events.
+- � **Advanced Retry Logic**: Exponential Backoff + randomized Jitter + Dead Letter Queue (DLQ).
+- 🚦 **Granular Control**: Pause/Resume specific job types (Named Queue Control).
+- 📱 **Mobile Optimized**: Auto-recovery from crashes, network-aware processing, and memory-efficient pagination.
 
-## Installation
+---
 
-### Core Package
+## 🏗 Architecture Overview
+
+`expo-queue` follows a modular design inspired by industrial messaging systems, optimized for the mobile environment.
+
+- **Job Registry**: Manages worker registrations and job-to-worker mapping.
+- **Job Processor**: The central orchestrator handling concurrency, backoff windows, and scheduling loops.
+- **Job Executor**: Manages the lifecycle of a single job attempt (Timeout, Success, Failure).
+- **Storage Adapters**: A lean persistence layer. Customizing storage is as simple as implementing the `Adapter` interface.
+
+---
+
+## 🚀 Quick Start
+
+### 1. Installation
 
 ```bash
-yarn add expo-queue
+yarn add expo-queue uuid
+npx expo install expo-sqlite # Optional: for SQLite persistence
 ```
 
-## Quick Start (In-Memory)
-
-By default, `expo-queue` uses an **In-Memory Adapter**. This is perfect for testing or jobs that don't need to persist across app restarts.
+### 2. Basic Setup (In-Memory)
 
 ```typescript
 import { Queue } from 'expo-queue';
 
-// 1. Create the Queue (defaults to memory)
+// 1. Initialize the Queue
 const queue = new Queue();
 
-// 2. Add a Worker
-queue.addWorker('upload', async (id, payload) => {
-  console.log('Uploading:', payload.uri);
+// 2. Register a Worker
+queue.addWorker('email-sync', async (id, payload) => {
+  console.log(`Syncing email for ${payload.userEmail}`);
+  // Return value is stored in the 'success' event
 });
 
 // 3. Add a Job
-await queue.addJob('upload', { uri: 'image.jpg' });
+await queue.addJob('email-sync', { userEmail: 'hi@example.com' });
 ```
 
 ---
 
-## 💾 Persistent Storage Options
+## 💾 Storage & Persistence
 
-If you need jobs to survive app restarts, you must choose a persistent adapter.
+Choose the persistence layer that fits your app's needs.
 
-### Level 1: Lightweight Persistence (AsyncStorage)
+### SQLite (Recommended)
 
-Good for general use cases. Uses `@react-native-async-storage/async-storage`.
-
-1. **Install Dependency**:
-
-   ```bash
-   yarn add @react-native-async-storage/async-storage
-   ```
-
-2. **Usage**:
-
-   ```typescript
-   import { Queue } from 'expo-queue';
-   import { AsyncStorageAdapter } from 'expo-queue/async-storage';
-
-   const queue = new Queue(new AsyncStorageAdapter());
-
-   queue.addWorker('sync', async (id, payload) => {
-     /* ... */
-   });
-   ```
-
-### Level 2: Heavyweight Persistence (SQLite)
-
-Recommended for heavy background processing, large job lists, or where atomicity is critical. Uses `expo-sqlite`.
-
-1. **Install Peer Dependency**:
-
-   ```bash
-   npx expo install expo-sqlite
-   ```
-
-2. **Usage**:
-   Import from the `sqlite` subpath.
-
-   ```typescript
-   import { Queue } from 'expo-queue';
-   import { SQLiteAdapter } from 'expo-queue/sqlite';
-
-   // Create the adapter (opens/creates 'worker.db')
-   const adapter = new SQLiteAdapter('worker.db');
-
-   // Initialize Queue
-   const queue = new Queue(adapter);
-
-   queue.addWorker('worker', async (id, payload) => { ... });
-   ```
-
-### Level 3: High-Performance / Custom
-
-For ultra-fast synchronous storage (`MMKV`) or reactive databases (`WatermelonDB`).
-
-- **MMKV**: [Read the MMKV Adapter Guide](./docs/adapter-mmkv.md)
-- **WatermelonDB**: [Read the WatermelonDB Adapter Guide](./docs/adapter-watermelondb.md)
-
----
-
-## ↻ Job Lifecycle & Reliability
-
-To prevent infinite retry loops and maintain a clean database, `expo-queue` implements robust lifecycle management.
-
-### Max Attempts & Backoff
-
-By default, jobs are attempted **once**. If they fail, they stop. You can enable retries with a backoff delay:
-
-```typescript
-queue.addJob('upload', payload, {
-  attempts: 5, // Retry up to 5 times total
-  timeInterval: 5000, // Wait 5 seconds between retries
-});
-```
-
-### Auto-Cleanup (TTL)
-
-To prevent "zombie jobs" from growing your database indefinitely, `expo-queue` enforces a **Time-To-Live (TTL)**.
-
-- **Default**: **7 days**. Jobs older than 7 days are automatically removed, regardless of their state.
-- **Custom**: You can increase or decrease this duration.
-- **Infinite**: Set `ttl: 0` to never expire a job.
-
-```typescript
-// Keep for 30 days
-queue.addJob('sync', payload, { ttl: 2592000000 });
-
-// Keep forever (only deleted when completed)
-queue.addJob('critical', payload, { ttl: 0 });
-```
-
-### Network Awareness
-
-For jobs that require internet connectivity (e.g., API calls, uploads), you can mark them with `onlineOnly: true`.
-
-1. **Install NetInfo**:
-
-   ```bash
-   npx expo install @react-native-community/netinfo
-   ```
-
-2. **Mark Network-Dependent Jobs**:
-
-   ```typescript
-   // This job requires network - will be skipped if offline
-   queue.addJob('upload', payload, { onlineOnly: true });
-
-   // This job runs regardless of network (e.g., local file operations)
-   queue.addJob('processLocal', data); // onlineOnly is optional
-   ```
-
-**How it works:**
-
-- **On-Demand Check**: Network status is checked **only when** a job with `onlineOnly: true` is about to run.
-- **Skip if Offline**: If the device is offline, the job is skipped (not failed) and will be retried in the next processing cycle.
-- **No Subscription**: The queue doesn't subscribe to network events globally. It checks on-demand, keeping resource usage minimal.
-- **Default**: Jobs run regardless of connectivity unless explicitly marked with `onlineOnly: true`.
-
----
-
-## API
-
-### `Queue` Class
+Atomic, reliable, and highly performant. Best for critical background tasks.
 
 ```typescript
 import { Queue } from 'expo-queue';
-const queue = new Queue(adapter, options);
+import { SQLiteAdapter } from 'expo-queue/sqlite';
+
+const adapter = new SQLiteAdapter('app-queue.db');
+const queue = new Queue(adapter);
 ```
 
-| Parameter | Type           | Default         | Description                          |
-| :-------- | :------------- | :-------------- | :----------------------------------- |
-| `adapter` | `Adapter`      | `MemoryAdapter` | (Optional) Storage adapter instance. |
-| `options` | `QueueOptions` | `{}`            | (Optional) Configuration options.    |
+### AsyncStorage
 
-**QueueOptions:**
+Good for lightweight, non-critical persistence.
 
-- `concurrency?: number` - Max concurrent jobs (default: 1).
+```typescript
+import { AsyncStorageAdapter } from 'expo-queue/async-storage';
+const queue = new Queue(new AsyncStorageAdapter());
+```
 
-#### Methods
+---
 
-| Method      | Signature                                                       | Description                                                                       |
-| :---------- | :-------------------------------------------------------------- | :-------------------------------------------------------------------------------- |
-| `addWorker` | `(name: string, fn: WorkerFn, options?: WorkerOptions) => void` | Registers a worker for a job type.                                                |
-| `addJob`    | `<T>(name, payload, options?: JobOptions) => Promise<string>`   | Adds a job. Options: `priority`, `attempts`, `ttl`, `timeInterval`, `onlineOnly`. |
-| `start`     | `() => Promise<void>`                                           | Starts processing the queue (auto-started by addJob).                             |
-| `stop`      | `() => void`                                                    | Stops processing after current jobs finish.                                       |
-| `on`        | `(event: Event, callback: Function) => void`                    | Listen for lifecycle events.                                                      |
+## 🛠 Advanced Features
 
-#### Events
+### 1. Exponential Backoff & Jitter
 
-| Event        | Callback Signature                 | Description                                  |
-| :----------- | :--------------------------------- | :------------------------------------------- |
-| `'start'`    | `(job: Job) => void`               | Fired when a worker starts a job.            |
-| `'success'`  | `(job: Job, result: any) => void`  | Fired when a job completes successfully.     |
-| `'failure'`  | `(job: Job, error: Error) => void` | Fired when a job throws an error.            |
-| `'complete'` | `(job: Job) => void`               | Fired when a job finishes (success or fail). |
+Prevent overwhelming your backend during outages.
 
-### `Job` Interface
+```typescript
+queue.addJob('sync', data, {
+  attempts: 5,
+  timeInterval: 2000, // Bases delay: 2s, 4s, 8s, 16s... + Jitter
+});
+```
 
-| Property       | Type             | Description                                       |
-| :------------- | :--------------- | :------------------------------------------------ |
-| `id`           | `string`         | Unique UUID.                                      |
-| `name`         | `string`         | Worker name to match.                             |
-| `payload`      | `T`              | Data passed to the worker.                        |
-| `priority`     | `number`         | Higher numbers run first. Default `0`.            |
-| `attempts`     | `number`         | Number of times tried.                            |
-| `maxAttempts`  | `number`         | Max retries allowed. Default `1`.                 |
-| `timeInterval` | `number`         | Delay between retries (ms). Default `0`.          |
-| `ttl`          | `number`         | Time To Live (ms). Hard expiry. Default `7 days`. |
-| `active`       | `boolean`        | `true` if currently running.                      |
-| `timeout`      | `number`         | Max run time (ms). Default `25000`.               |
-| `created`      | `string`         | ISO Date string.                                  |
-| `failed`       | `string \| null` | ISO Date string if failed.                        |
-| `metaData`     | `object`         | Custom metadata (e.g. error logs).                |
+### 2. Dead Letter Queue (DLQ)
 
-### `WorkerOptions`
+Move terminally failed jobs to a DLQ for later inspection.
 
-| Property      | Type                 | Default | Description                            |
-| :------------ | :------------------- | :------ | :------------------------------------- |
-| `concurrency` | `number`             | `1`     | Max concurrent jobs for _this_ worker. |
-| `onStart`     | `(job) => void`      | -       | Worker-specific start hook.            |
-| `onSuccess`   | `(job, res) => void` | -       | Worker-specific success hook.          |
-| `onFailure`   | `(job, err) => void` | -       | Worker-specific failure hook.          |
+```typescript
+// If the adapter supports moveToDLQ, it happens automatically after maxAttempts
+queue.on('failed', (job, error) => {
+  console.error(`Job ${job.id} permanently failed:`, error);
+});
+```
 
-## Contributing
+### 3. Named Queue Control
 
-See the [contributing guide](CONTRIBUTING.md).
+Pause or resume execution for specific job types without stopping the whole queue.
+
+```typescript
+queue.pauseJob('heavy-sync');
+// Later...
+queue.resumeJob('heavy-sync');
+```
+
+---
+
+## 🧪 Custom Adapters
+
+`expo-queue` is designed to be easily extensible. All core logic (retries, backoff, TTL, concurrency) is decoupled from storage, so you only need to implement a "dumb" persistence layer.
+
+### Implementation Guides
+
+For full, production-ready implementations of custom adapters, see our detailed guides:
+
+- [**MMKV Adapter Guide**](./docs/adapter-mmkv.md) - Ultra-fast synchronous key-value storage.
+- [**WatermelonDB Adapter Guide**](./docs/adapter-watermelondb.md) - Reactive SQLite-based persistence.
+
+---
+
+## 🔧 API Reference
+
+### `Queue<T = unknown>`
+
+Main entry point.
+
+| Method                             | Description                            |
+| :--------------------------------- | :------------------------------------- |
+| `addJob(name, payload, options)`   | Adds a job with custom `JobOptions`.   |
+| `addWorker(name, fn, options)`     | Registers a worker.                    |
+| `pauseJob(name) / resumeJob(name)` | Pauses/Resumes execution per job name. |
+| `on(event, callback)`              | Strictly typed event listeners.        |
+
+### `JobOptions`
+
+| Property       | Default  | Description                        |
+| :------------- | :------- | :--------------------------------- |
+| `priority`     | `0`      | Higher numbers run first.          |
+| `attempts`     | `1`      | Max attempts before moving to DLQ. |
+| `timeInterval` | `0`      | Base retry delay in ms.            |
+| `ttl`          | `7 days` | Hard expiry (ms).                  |
+| `onlineOnly`   | `false`  | Only run when device is connected. |
+
+---
+
+## 🔋 Performance & Reliability
+
+- **Atomic Claiming**: SQLite and other adapters use row-level locking or transactions to prevent duplicate processing.
+- **Memory Safety**: Uses memory-efficient pagination even if you have 10,000 jobs in the queue.
+- **Crash Recovery**: Auto-resets "ghost jobs" (active jobs from a previous session) on startup.
 
 ## License
 
 MIT
+
+---
+
+Built with ❤️ by [Amakiri Joseph](https://github.com/josemak25)
