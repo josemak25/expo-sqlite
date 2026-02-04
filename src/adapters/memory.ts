@@ -20,7 +20,7 @@ export class MemoryAdapter implements Adapter {
    */
   async getConcurrentJobs(): Promise<Job<unknown>[]> {
     return Array.from(this.jobs.values())
-      .filter((job) => !job.active && !job.failed)
+      .filter((job) => !job.active && job.attempts < job.maxAttempts)
       .sort((a, b) => {
         // Sort by priority DESC, then created ASC
         if (a.priority !== b.priority) {

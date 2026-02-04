@@ -24,7 +24,7 @@ export class AsyncStorageAdapter implements Adapter {
     // Filter active=false, failed=null
     // Sort by priority DESC, created ASC
     return jobs
-      .filter((job) => !job.active && !job.failed)
+      .filter((job) => !job.active && job.attempts < job.maxAttempts)
       .sort((a, b) => {
         if (a.priority !== b.priority) {
           return b.priority - a.priority;

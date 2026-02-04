@@ -69,9 +69,11 @@ export class Queue extends EventEmitter {
       timeInterval?: number;
       ttl?: number;
       onlineOnly?: boolean;
+      autoStart?: boolean;
       metaData?: Record<string, unknown>;
     } = {}
   ): Promise<string> {
+    const autoStart = options.autoStart !== false;
     const job: Job<T> = {
       id: uuidv4(),
       name,
@@ -90,7 +92,9 @@ export class Queue extends EventEmitter {
     };
 
     await this.adapter.addJob(job);
-    this.start(); // Auto-start
+    if (autoStart) {
+      this.start();
+    }
     return job.id;
   }
 
@@ -123,123 +127,139 @@ export class Queue extends EventEmitter {
     if (this.runningJobs >= this.concurrency) return;
 
     // Fetch next batch of jobs
-    // We only fetch what we can process
-    // We only fetch what we can process
     const jobs = await this.adapter.getConcurrentJobs();
 
     if (jobs.length === 0) {
       if (this.runningJobs === 0) {
         this.status = 'inactive';
       }
-      // If no jobs found, stop recursively calling process until new jobs are added via addJob or start is called again
       return;
     }
 
-    jobs.forEach(async (job) => {
-      // Re-check concurrency
-      if (this.runningJobs >= this.concurrency) return;
+    let jobsStartedThisBatch = 0;
+    let hasSkippedBackoff = false;
+    let nextBackoffDelay = Infinity;
+
+    for (const job of jobs) {
+      if (this.runningJobs >= this.concurrency) break;
 
       // 1. Check TTL (Hard Expiry)
       if (job.ttl > 0) {
         const created = new Date(job.created).getTime();
         const now = Date.now();
         if (now - created > job.ttl) {
-          // Hard expiry -> delete job
           await this.adapter.removeJob(job);
-          return;
+          continue;
         }
       }
 
       // 2. Check TimeInterval (Backoff)
-      // If we failed previously, check if we waited enough
-      if (job.failed) {
+      if (job.failed && job.attempts < job.maxAttempts) {
         const lastFailed = new Date(job.failed).getTime();
         const now = Date.now();
-        if (now - lastFailed < job.timeInterval) {
-          // Not yet time to retry
-          return;
+        const elapsed = now - lastFailed;
+        if (elapsed < job.timeInterval) {
+          hasSkippedBackoff = true;
+          nextBackoffDelay = Math.min(
+            nextBackoffDelay,
+            job.timeInterval - elapsed
+          );
+          continue;
         }
       }
 
       // 3. Network Check (Per-Job)
-      // If this job requires network, check dynamically
       if (job.onlineOnly === true) {
+        let isConnected = true;
         try {
           const NetInfo = require('@react-native-community/netinfo');
           const networkState = await NetInfo.fetch();
-
-          if (networkState.isConnected === false) {
-            // Job needs network but we're offline - skip for now
-            return;
-          }
+          isConnected = networkState.isConnected !== false;
         } catch {
-          // NetInfo not installed, warn and skip job
           console.warn(
-            `expo-queue: Job "${job.name}" requires network but @react-native-community/netinfo is not installed. ` +
-              'Please install it with: npx expo install @react-native-community/netinfo'
+            `expo-queue: Job "${job.name}" requires network but @react-native-community/netinfo is not installed.`
           );
-          return;
+          isConnected = false;
+        }
+
+        if (!isConnected) {
+          continue;
         }
       }
 
       // 4. Max Attempts Check
-      // If we exceeded maxAttempts, we shouldn't be here (should remain failed),
-      // but double check to prevent infinite loops if DB state is weird.
       if (job.attempts >= job.maxAttempts) {
-        // Stop processing this job.
-        // Optionally invoke onFailed here if we want to catch it on boot
-        return;
+        continue;
       }
 
       const worker = this.workers[job.name];
       if (!worker) {
         job.failed = new Date().toISOString();
         await this.adapter.updateJob(job);
-        return;
+        continue;
       }
 
-      this.runningJobs++;
-      job.active = true;
-      job.failed = null; // Clear previous fail state when starting
-      await this.adapter.updateJob(job);
+      // Start the job execution
+      jobsStartedThisBatch++;
+      this.executeJob(job, worker);
+    }
 
-      this.emit('start', job);
+    // Handle backoff wakeup
+    if (
+      jobsStartedThisBatch === 0 &&
+      this.runningJobs === 0 &&
+      hasSkippedBackoff
+    ) {
+      // Wake up after the shortest backoff delay
+      setTimeout(() => this.process(), nextBackoffDelay + 10);
+      // Keep state active so we can trigger again
+      this.status = 'active';
+    } else if (
+      jobsStartedThisBatch === 0 &&
+      this.runningJobs === 0 &&
+      !hasSkippedBackoff
+    ) {
+      this.status = 'inactive';
+    }
+  }
 
-      try {
-        await worker.execute(job);
-        await this.adapter.removeJob(job); // Remove on success
-        this.emit('success', job);
-      } catch (error) {
-        job.attempts++;
-        job.active = false;
-        job.failed = new Date().toISOString(); // Mark failed timestamp
+  /**
+   * Executes a single job.
+   */
+  private async executeJob(job: Job<any>, worker: Worker<any>) {
+    this.runningJobs++;
+    job.active = true;
+    job.failed = null;
+    await this.adapter.updateJob(job);
 
-        // Log failure
-        job.metaData = {
-          ...job.metaData,
-          lastError: (error as Error).message,
-        };
+    this.emit('start', job);
 
-        // Check if we hit max attempts
-        if (job.attempts >= job.maxAttempts) {
-          // Final Failure
-          this.emit('failure', job, error); // Emits failure on every fail attempt?
-          // Maybe we want a distinctive 'failed' event for final death?
-          // Existing interface has onFailed in WorkerOptions
-          const w = this.workers[job.name];
-          if (w && w.options.onFailed) {
-            w.options.onFailed(job, error as Error);
-          }
-        } else {
-          // Just a retry failure
-          this.emit('failure', job, error);
+    try {
+      await worker.execute(job);
+      await this.adapter.removeJob(job);
+      this.emit('success', job);
+    } catch (error) {
+      job.attempts++;
+      job.active = false;
+      job.failed = new Date().toISOString();
+      job.metaData = {
+        ...job.metaData,
+        lastError: (error as Error).message,
+      };
+
+      if (job.attempts >= job.maxAttempts) {
+        this.emit('failure', job, error);
+        if (worker.options.onFailed) {
+          worker.options.onFailed(job, error as Error);
         }
-
-        await this.adapter.updateJob(job);
-      } finally {
-        this.runningJobs--;
-        this.process(); // Trigger next processing cycle
+      } else {
+        this.emit('failure', job, error);
       }
-    });
+
+      await this.adapter.updateJob(job);
+    } finally {
+      this.runningJobs--;
+      this.process();
+    }
   }
 }

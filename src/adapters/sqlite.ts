@@ -60,10 +60,12 @@ export class SQLiteAdapter implements Adapter {
     // Logic similar to react-native-queue to fetch concurrent jobs
     // We prioritize by priority DESC, then created ASC
     const result = await this.db.getAllAsync<any>(
-      `SELECT * FROM ${this.tableName} WHERE active = 0 AND failed IS NULL ORDER BY priority DESC, created ASC`
+      `SELECT * FROM ${this.tableName} WHERE active = 0 ORDER BY priority DESC, created ASC`
     );
 
-    return result.map(this.mapRowToJob);
+    return result
+      .map((row) => this.mapRowToJob(row))
+      .filter((job) => job.attempts < job.maxAttempts);
   }
 
   async updateJob<T = unknown>(job: Job<T>): Promise<void> {

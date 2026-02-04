@@ -3126,6 +3126,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@react-native-community/netinfo@npm:^11.3.0":
+  version: 11.5.2
+  resolution: "@react-native-community/netinfo@npm:11.5.2"
+  peerDependencies:
+    react: "*"
+    react-native: ">=0.59"
+  checksum: 10c0/d5301d7d8b363753b6980f5d17dc47ad4933fc46e4010aceb937c0f673b35a6648f259df930b2b48d99344a90ff7a187344486100c4874462d88545f1647bef5
+  languageName: node
+  linkType: hard
+
 "@react-native/assets-registry@npm:0.81.5":
   version: 0.81.5
   resolution: "@react-native/assets-registry@npm:0.81.5"
@@ -6547,7 +6557,9 @@ __metadata:
   resolution: "expo-queue-example@workspace:example"
   dependencies:
     "@expo/metro-runtime": "npm:~6.1.2"
+    "@react-native-community/netinfo": "npm:^11.3.0"
     expo: "npm:~54.0.33"
+    expo-sqlite: "npm:^16.0.10"
     expo-status-bar: "npm:~3.0.9"
     react: "npm:19.1.0"
     react-dom: "npm:19.1.0"
@@ -6566,6 +6578,7 @@ __metadata:
     "@eslint/eslintrc": "npm:^3.3.1"
     "@eslint/js": "npm:^9.35.0"
     "@react-native-async-storage/async-storage": "npm:^2.2.0"
+    "@react-native-community/netinfo": "npm:^11.3.0"
     "@react-native/babel-preset": "npm:0.83.0"
     "@react-native/eslint-config": "npm:0.83.0"
     "@release-it/conventional-changelog": "npm:^10.0.1"
@@ -6588,8 +6601,18 @@ __metadata:
     typescript: "npm:^5.9.3"
     uuid: "npm:^13.0.0"
   peerDependencies:
+    "@react-native-async-storage/async-storage": "*"
+    "@react-native-community/netinfo": "*"
+    expo-sqlite: "*"
     react: "*"
     react-native: "*"
+  peerDependenciesMeta:
+    "@react-native-async-storage/async-storage":
+      optional: true
+    "@react-native-community/netinfo":
+      optional: true
+    expo-sqlite:
+      optional: true
   languageName: unknown
   linkType: soft
 
