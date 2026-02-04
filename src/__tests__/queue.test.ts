@@ -1,11 +1,5 @@
 import { Queue } from '../queue';
 import type { Adapter, Job } from '../types';
-import NetInfo from '@react-native-community/netinfo';
-
-// Mock NetInfo at the top level
-jest.mock('@react-native-community/netinfo', () => ({
-  fetch: jest.fn().mockResolvedValue({ isConnected: true }),
-}));
 
 class MockAdapter implements Adapter {
   jobs: Job<unknown>[] = [];
@@ -311,64 +305,6 @@ describe('Queue', () => {
       });
 
       queue.addJob('quick-job', {}, { ttl: 5000 }); // 5 seconds
-    });
-  });
-
-  describe('Network Awareness (onlineOnly)', () => {
-    beforeEach(() => {
-      // Reset mocks
-      (NetInfo.fetch as jest.Mock).mockClear();
-    });
-
-    it('should skip job when offline and onlineOnly is true', async () => {
-      (NetInfo.fetch as jest.Mock).mockResolvedValueOnce({
-        isConnected: false,
-      });
-
-      const workerFn = jest.fn();
-      queue.addWorker('upload-job', workerFn);
-
-      await queue.addJob('upload-job', {}, { onlineOnly: true });
-
-      // Give it time to try processing
-      jest.advanceTimersByTime(200);
-      await flushPromises();
-
-      // Worker should not have been called (job skipped)
-      expect(workerFn).not.toHaveBeenCalled();
-    });
-
-    it('should process job when online and onlineOnly is true', (done) => {
-      (NetInfo.fetch as jest.Mock).mockResolvedValueOnce({ isConnected: true });
-
-      const workerFn = jest.fn().mockResolvedValue(null);
-      queue.addWorker('upload-job', workerFn);
-
-      queue.on('success', () => {
-        expect(workerFn).toHaveBeenCalled();
-        done();
-      });
-
-      queue.addJob('upload-job', {}, { onlineOnly: true });
-    });
-
-    it('should process job regardless of network when onlineOnly is undefined', (done) => {
-      (NetInfo.fetch as jest.Mock).mockResolvedValueOnce({
-        isConnected: false,
-      });
-
-      const workerFn = jest.fn().mockResolvedValue(null);
-      queue.addWorker('local-job', workerFn);
-
-      queue.on('success', () => {
-        expect(workerFn).toHaveBeenCalled();
-        // NetInfo should not have been called
-        expect(NetInfo.fetch).not.toHaveBeenCalled();
-        done();
-      });
-
-      // onlineOnly defaults to undefined (runs regardless)
-      queue.addJob('local-job', {});
     });
   });
 

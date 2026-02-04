@@ -6,6 +6,8 @@ export class JobProcessor {
   private status: 'active' | 'inactive' = 'inactive';
   private runningJobs: number = 0;
   private concurrency: number;
+  private isConnected: boolean = true;
+  private unsubscribeNetInfo: (() => void) | null = null;
 
   constructor(
     private adapter: Adapter,
@@ -19,11 +21,46 @@ export class JobProcessor {
   start() {
     if (this.status === 'active') return;
     this.status = 'active';
+
+    // Subscribe to network changes if not already subscribed
+    this.setupNetworkMonitoring();
+
     this.process();
+  }
+
+  private setupNetworkMonitoring() {
+    if (this.unsubscribeNetInfo) return;
+
+    try {
+      const NetInfo = require('@react-native-community/netinfo');
+
+      // Initialize state
+      NetInfo.fetch().then((state: any) => {
+        this.isConnected = state.isConnected !== false;
+      });
+
+      // Subscribe to changes
+      this.unsubscribeNetInfo = NetInfo.addEventListener((state: any) => {
+        const wasConnected = this.isConnected;
+        this.isConnected = state.isConnected !== false;
+
+        // If network recovered, trigger processing
+        if (!wasConnected && this.isConnected && this.status === 'active') {
+          this.process();
+        }
+      });
+    } catch {
+      // NetInfo not available, assume always connected or handle as before
+      this.isConnected = true;
+    }
   }
 
   stop() {
     this.status = 'inactive';
+    if (this.unsubscribeNetInfo) {
+      this.unsubscribeNetInfo();
+      this.unsubscribeNetInfo = null;
+    }
   }
 
   private async process() {
@@ -63,38 +100,31 @@ export class JobProcessor {
         }
       }
 
-      // 2. Check TimeInterval (Backoff)
+      // 2. Check TimeInterval (Exponential Backoff)
       if (job.failed && job.attempts < job.maxAttempts) {
         const lastFailed = new Date(job.failed).getTime();
         const now = Date.now();
         const elapsed = now - lastFailed;
-        if (elapsed < job.timeInterval) {
+
+        // Calculate exponential backoff: baseDelay * 2^attempts
+        // This prevents hammering servers and saves battery
+        const exponentialDelay = job.timeInterval * Math.pow(2, job.attempts);
+
+        // Add jitter: randomized variance between 0 and base interval
+        // This prevents the "thundering herd" effect by spreading out retries
+        const jitter = Math.random() * job.timeInterval;
+        const totalDelay = exponentialDelay + jitter;
+
+        if (elapsed < totalDelay) {
           hasSkippedBackoff = true;
-          nextBackoffDelay = Math.min(
-            nextBackoffDelay,
-            job.timeInterval - elapsed
-          );
+          nextBackoffDelay = Math.min(nextBackoffDelay, totalDelay - elapsed);
           continue;
         }
       }
 
       // 3. Network Check (Per-Job)
-      if (job.onlineOnly === true) {
-        let isConnected = true;
-        try {
-          const NetInfo = require('@react-native-community/netinfo');
-          const networkState = await NetInfo.fetch();
-          isConnected = networkState.isConnected !== false;
-        } catch {
-          console.warn(
-            `expo-queue: Job "${job.name}" requires network but @react-native-community/netinfo is not installed.`
-          );
-          isConnected = false;
-        }
-
-        if (!isConnected) {
-          continue;
-        }
+      if (job.onlineOnly === true && !this.isConnected) {
+        continue;
       }
 
       // 4. Max Attempts Check
