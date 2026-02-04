@@ -64,6 +64,10 @@ export class Queue extends EventEmitter {
     options: {
       priority?: number;
       timeout?: number;
+      attempts?: number;
+      retries?: number;
+      timeInterval?: number;
+      ttl?: number;
       metaData?: Record<string, unknown>;
     } = {}
   ): Promise<string> {
@@ -74,6 +78,10 @@ export class Queue extends EventEmitter {
       metaData: options.metaData || {},
       priority: options.priority || 0,
       attempts: 0,
+      maxAttempts:
+        options.attempts || (options.retries ? options.retries + 1 : 1),
+      timeInterval: options.timeInterval || 0,
+      ttl: options.ttl || 1000 * 60 * 60 * 24 * 7, // Default 7 days
       active: false,
       timeout: options.timeout || 25000,
       created: new Date().toISOString(),
@@ -126,21 +134,51 @@ export class Queue extends EventEmitter {
     }
 
     jobs.forEach(async (job) => {
-      // Re-check concurrency before starting each job in the batch
+      // Re-check concurrency
       if (this.runningJobs >= this.concurrency) return;
+
+      // 1. Check TTL (Hard Expiry)
+      if (job.ttl > 0) {
+        const created = new Date(job.created).getTime();
+        const now = Date.now();
+        if (now - created > job.ttl) {
+          // Hard expiry -> delete job
+          await this.adapter.removeJob(job);
+          return;
+        }
+      }
+
+      // 2. Check TimeInterval (Backoff)
+      // If we failed previously, check if we waited enough
+      if (job.failed) {
+        const lastFailed = new Date(job.failed).getTime();
+        const now = Date.now();
+        if (now - lastFailed < job.timeInterval) {
+          // Not yet time to retry
+          return;
+        }
+      }
+
+      // 3. Max Attempts Check
+      // If we exceeded maxAttempts, we shouldn't be here (should remain failed),
+      // but double check to prevent infinite loops if DB state is weird.
+      if (job.attempts >= job.maxAttempts) {
+        // Stop processing this job.
+        // Optionally invoke onFailed here if we want to catch it on boot
+        return;
+      }
 
       const worker = this.workers[job.name];
       if (!worker) {
-        // No worker found for this job, mark failed? or skip?
-        // For now, let's mark failed
         job.failed = new Date().toISOString();
-        await this.adapter.updateJob(job); // Mark failed in DB
+        await this.adapter.updateJob(job);
         return;
       }
 
       this.runningJobs++;
       job.active = true;
-      await this.adapter.updateJob(job); // Mark active in DB
+      job.failed = null; // Clear previous fail state when starting
+      await this.adapter.updateJob(job);
 
       this.emit('start', job);
 
@@ -151,19 +189,30 @@ export class Queue extends EventEmitter {
       } catch (error) {
         job.attempts++;
         job.active = false;
-        // Simple retry logic check (can be enhanced)
-        // Check if max attempts reached?
-        // For now, let's assume infinite retries logic or better:
-        // Let's default max retries to 3 if not specified?
-        // We will improve retry logic later.
+        job.failed = new Date().toISOString(); // Mark failed timestamp
 
         // Log failure
         job.metaData = {
           ...job.metaData,
           lastError: (error as Error).message,
         };
+
+        // Check if we hit max attempts
+        if (job.attempts >= job.maxAttempts) {
+          // Final Failure
+          this.emit('failure', job, error); // Emits failure on every fail attempt?
+          // Maybe we want a distinctive 'failed' event for final death?
+          // Existing interface has onFailed in WorkerOptions
+          const w = this.workers[job.name];
+          if (w && w.options.onFailed) {
+            w.options.onFailed(job, error as Error);
+          }
+        } else {
+          // Just a retry failure
+          this.emit('failure', job, error);
+        }
+
         await this.adapter.updateJob(job);
-        this.emit('failure', job, error);
       } finally {
         this.runningJobs--;
         this.process(); // Trigger next processing cycle

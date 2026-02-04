@@ -25,6 +25,12 @@ export interface Job<T = unknown> {
   failed?: string | null;
   /** Name of the worker that processed this job (optional). */
   workerName?: string;
+  /** Maximum number of attempts allowed for this job. Default 1. */
+  maxAttempts: number;
+  /** Delay in milliseconds between retry attempts. Default 0. */
+  timeInterval: number;
+  /** Time To Live in milliseconds. If (now - created) > ttl, job is discarded. Default 7 days. */
+  ttl: number;
 }
 
 /**

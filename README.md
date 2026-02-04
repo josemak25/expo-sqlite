@@ -101,6 +101,39 @@ For ultra-fast synchronous storage (`MMKV`) or reactive databases (`WatermelonDB
 
 ---
 
+## ↻ Job Lifecycle & Reliability
+
+To prevent infinite retry loops and maintain a clean database, `expo-queue` implements robust lifecycle management.
+
+### Max Attempts & Backoff
+
+By default, jobs are attempted **once**. If they fail, they stop. You can enable retries with a backoff delay:
+
+```typescript
+queue.addJob('upload', payload, {
+  attempts: 5, // Retry up to 5 times total
+  timeInterval: 5000, // Wait 5 seconds between retries
+});
+```
+
+### Auto-Cleanup (TTL)
+
+To prevent "zombie jobs" from growing your database indefinitely, `expo-queue` enforces a **Time-To-Live (TTL)**.
+
+- **Default**: **7 days**. Jobs older than 7 days are automatically removed, regardless of their state.
+- **Custom**: You can increase or decrease this duration.
+- **Infinite**: Set `ttl: 0` to never expire a job.
+
+```typescript
+// Keep for 30 days
+queue.addJob('sync', payload, { ttl: 2592000000 });
+
+// Keep forever (only deleted when completed)
+queue.addJob('critical', payload, { ttl: 0 });
+```
+
+---
+
 ## API
 
 ### `Queue` Class
@@ -117,13 +150,13 @@ const queue = new Queue(adapter, options);
 
 #### Methods
 
-| Method      | Signature                                                                | Description                                           |
-| :---------- | :----------------------------------------------------------------------- | :---------------------------------------------------- |
-| `addWorker` | `(name: string, fn: WorkerFn, options?: WorkerOptions) => void`          | Registers a worker for a job type.                    |
-| `addJob`    | `<T>(name: string, payload: T, options?: JobOptions) => Promise<string>` | Adds a job to the queue. Returns Job ID.              |
-| `start`     | `() => Promise<void>`                                                    | Starts processing the queue (auto-started by addJob). |
-| `stop`      | `() => void`                                                             | Stops processing after current jobs finish.           |
-| `on`        | `(event: Event, callback: Function) => void`                             | Listen for lifecycle events.                          |
+| Method      | Signature                                                       | Description                                                         |
+| :---------- | :-------------------------------------------------------------- | :------------------------------------------------------------------ |
+| `addWorker` | `(name: string, fn: WorkerFn, options?: WorkerOptions) => void` | Registers a worker for a job type.                                  |
+| `addJob`    | `<T>(name, payload, options?: JobOptions) => Promise<string>`   | Adds a job. Options: `priority`, `attempts`, `ttl`, `timeInterval`. |
+| `start`     | `() => Promise<void>`                                           | Starts processing the queue (auto-started by addJob).               |
+| `stop`      | `() => void`                                                    | Stops processing after current jobs finish.                         |
+| `on`        | `(event: Event, callback: Function) => void`                    | Listen for lifecycle events.                                        |
 
 #### Events
 
@@ -136,18 +169,21 @@ const queue = new Queue(adapter, options);
 
 ### `Job` Interface
 
-| Property   | Type             | Description                            |
-| :--------- | :--------------- | :------------------------------------- |
-| `id`       | `string`         | Unique UUID.                           |
-| `name`     | `string`         | Worker name to match.                  |
-| `payload`  | `T`              | Data passed to the worker.             |
-| `priority` | `number`         | Higher numbers run first. Default `0`. |
-| `attempts` | `number`         | Number of times tried.                 |
-| `active`   | `boolean`        | `true` if currently running.           |
-| `timeout`  | `number`         | Max run time (ms). Default `25000`.    |
-| `created`  | `string`         | ISO Date string.                       |
-| `failed`   | `string \| null` | ISO Date string if failed.             |
-| `metaData` | `object`         | Custom metadata (e.g. error logs).     |
+| Property       | Type             | Description                                       |
+| :------------- | :--------------- | :------------------------------------------------ |
+| `id`           | `string`         | Unique UUID.                                      |
+| `name`         | `string`         | Worker name to match.                             |
+| `payload`      | `T`              | Data passed to the worker.                        |
+| `priority`     | `number`         | Higher numbers run first. Default `0`.            |
+| `attempts`     | `number`         | Number of times tried.                            |
+| `maxAttempts`  | `number`         | Max retries allowed. Default `1`.                 |
+| `timeInterval` | `number`         | Delay between retries (ms). Default `0`.          |
+| `ttl`          | `number`         | Time To Live (ms). Hard expiry. Default `7 days`. |
+| `active`       | `boolean`        | `true` if currently running.                      |
+| `timeout`      | `number`         | Max run time (ms). Default `25000`.               |
+| `created`      | `string`         | ISO Date string.                                  |
+| `failed`       | `string \| null` | ISO Date string if failed.                        |
+| `metaData`     | `object`         | Custom metadata (e.g. error logs).                |
 
 ### `WorkerOptions`
 
