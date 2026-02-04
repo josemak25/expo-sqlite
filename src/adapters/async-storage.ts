@@ -18,19 +18,35 @@ export class AsyncStorageAdapter implements Adapter {
     await this.saveJobsToStorage(jobs);
   }
 
-  async getConcurrentJobs(): Promise<Job<unknown>[]> {
-    const jobs = await this.getJobsFromStorage();
+  async getConcurrentJobs(limit: number = 1): Promise<Job<unknown>[]> {
+    const allJobs = await this.getJobsFromStorage();
 
     // Filter active=false, failed=null
     // Sort by priority DESC, created ASC
-    return jobs
+    const candidateJobs = allJobs
       .filter((job) => !job.active && job.attempts < job.maxAttempts)
       .sort((a, b) => {
         if (a.priority !== b.priority) {
           return b.priority - a.priority;
         }
         return new Date(a.created).getTime() - new Date(b.created).getTime();
+      })
+      .slice(0, limit);
+
+    // Perform a Read-Modify-Write cycle to claim the jobs.
+    // While AsyncStorage is not transactional, updating the source array immediately
+    // and saving it back reduces the window for race conditions in a single JS process.
+    if (candidateJobs.length > 0) {
+      candidateJobs.forEach((job) => {
+        job.active = true;
+        // Update reference in the source array
+        const idx = allJobs.findIndex((j) => j.id === job.id);
+        if (idx !== -1) allJobs[idx] = job;
       });
+      await this.saveJobsToStorage(allJobs);
+    }
+
+    return candidateJobs;
   }
 
   async updateJob<T = unknown>(job: Job<T>): Promise<void> {

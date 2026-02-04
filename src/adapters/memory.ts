@@ -18,8 +18,8 @@ export class MemoryAdapter implements Adapter {
    * Retrieves concurrent jobs from memory.
    * Filters for inactive and non-failed jobs, sorted by priority and creation time.
    */
-  async getConcurrentJobs(): Promise<Job<unknown>[]> {
-    return Array.from(this.jobs.values())
+  async getConcurrentJobs(limit: number = 1): Promise<Job<unknown>[]> {
+    const jobs = Array.from(this.jobs.values())
       .filter((job) => !job.active && job.attempts < job.maxAttempts)
       .sort((a, b) => {
         // Sort by priority DESC, then created ASC
@@ -27,7 +27,18 @@ export class MemoryAdapter implements Adapter {
           return b.priority - a.priority;
         }
         return new Date(a.created).getTime() - new Date(b.created).getTime();
-      });
+      })
+      .slice(0, limit);
+
+    // In a single-threaded environment (JS Loop), this operation is effectively atomic.
+    // We mark the selected jobs as active immediately so subsequent calls in the same tick
+    // (or after await) will see them as taken.
+    for (const job of jobs) {
+      job.active = true;
+      this.jobs.set(job.id, job);
+    }
+
+    return jobs;
   }
 
   async updateJob<T = unknown>(job: Job<T>): Promise<void> {
