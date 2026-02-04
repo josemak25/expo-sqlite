@@ -1,19 +1,26 @@
 import type { Adapter, Job, QueueOptions, WorkerOptions } from './types';
-import { Worker } from './worker';
 import { MemoryAdapter } from './adapters/memory';
 import { v4 as uuidv4 } from 'uuid';
 import { EventEmitter } from 'eventemitter3';
+import { JobRegistry } from './registry';
+import { JobExecutor } from './executor';
+import { JobProcessor } from './processor';
 
 /**
  * The main Queue class responsible for managing jobs and workers.
  * Extends EventEmitter to provide lifecycle events (start, success, failure).
+ *
+ * This class now acts as a Facade, delegating responsibilities to:
+ * - JobRegistry: Worker management
+ * - JobProcessor: Processing loop and scheduling
+ * - JobExecutor: Execution details
+ * - Adapter: Storage
  */
 export class Queue extends EventEmitter {
   private adapter: Adapter;
-  private concurrency: number;
-  private workers: { [name: string]: Worker<unknown> } = {};
-  private status: 'active' | 'inactive' = 'inactive';
-  private runningJobs: number = 0;
+  private registry: JobRegistry;
+  private executor: JobExecutor;
+  private processor: JobProcessor;
 
   /**
    * Creates a new Queue instance.
@@ -23,31 +30,33 @@ export class Queue extends EventEmitter {
   constructor(adapter?: Adapter, options: QueueOptions = {}) {
     super();
     this.adapter = adapter || new MemoryAdapter();
-    this.concurrency = options.concurrency || 1;
+    this.registry = new JobRegistry();
+    this.executor = new JobExecutor(this.adapter, this);
+
+    this.processor = new JobProcessor(
+      this.adapter,
+      this.registry,
+      this.executor,
+      options.concurrency || 1
+    );
   }
 
   /**
    * Registers a worker function to handle a specific job name.
-   * @template T - The type of the job payload this worker expects.
-   * @param name - The name of the job associated with this worker.
-   * @param workerFn - The async function to execute when processing the job.
-   * @param options - Options for the worker (concurrency, callbacks).
    */
   addWorker<T = unknown>(
     name: string,
     workerFn: (id: string, payload: T) => Promise<void>,
     options: WorkerOptions<T> = {}
   ) {
-    // Cast to unknown to store in the generic workers map
-    this.workers[name] = new Worker(name, workerFn, options) as Worker<unknown>;
+    this.registry.addWorker(name, workerFn, options);
   }
 
   /**
    * Removes a registered worker.
-   * @param name - The name of the job/worker to remove.
    */
   removeWorker(name: string) {
-    delete this.workers[name];
+    this.registry.removeWorker(name);
   }
 
   /**
@@ -103,163 +112,13 @@ export class Queue extends EventEmitter {
    * If already active, this method does nothing.
    */
   async start() {
-    if (this.status === 'active') return;
-    this.status = 'active';
-    this.process();
+    this.processor.start();
   }
 
   /**
    * Stops processing the queue.
-   * The queue will finish currently running jobs but will not pick up new ones.
    */
   stop() {
-    this.status = 'inactive';
-  }
-
-  /**
-   * Internal method to process the next batch of jobs.
-   * Respects concurrency limits and status.
-   */
-  private async process() {
-    if (this.status === 'inactive') return;
-
-    // Check global concurrency
-    if (this.runningJobs >= this.concurrency) return;
-
-    // Fetch next batch of jobs
-    const jobs = await this.adapter.getConcurrentJobs();
-
-    if (jobs.length === 0) {
-      if (this.runningJobs === 0) {
-        this.status = 'inactive';
-      }
-      return;
-    }
-
-    let jobsStartedThisBatch = 0;
-    let hasSkippedBackoff = false;
-    let nextBackoffDelay = Infinity;
-
-    for (const job of jobs) {
-      if (this.runningJobs >= this.concurrency) break;
-
-      // 1. Check TTL (Hard Expiry)
-      if (job.ttl > 0) {
-        const created = new Date(job.created).getTime();
-        const now = Date.now();
-        if (now - created > job.ttl) {
-          await this.adapter.removeJob(job);
-          continue;
-        }
-      }
-
-      // 2. Check TimeInterval (Backoff)
-      if (job.failed && job.attempts < job.maxAttempts) {
-        const lastFailed = new Date(job.failed).getTime();
-        const now = Date.now();
-        const elapsed = now - lastFailed;
-        if (elapsed < job.timeInterval) {
-          hasSkippedBackoff = true;
-          nextBackoffDelay = Math.min(
-            nextBackoffDelay,
-            job.timeInterval - elapsed
-          );
-          continue;
-        }
-      }
-
-      // 3. Network Check (Per-Job)
-      if (job.onlineOnly === true) {
-        let isConnected = true;
-        try {
-          const NetInfo = require('@react-native-community/netinfo');
-          const networkState = await NetInfo.fetch();
-          isConnected = networkState.isConnected !== false;
-        } catch {
-          console.warn(
-            `expo-queue: Job "${job.name}" requires network but @react-native-community/netinfo is not installed.`
-          );
-          isConnected = false;
-        }
-
-        if (!isConnected) {
-          continue;
-        }
-      }
-
-      // 4. Max Attempts Check
-      if (job.attempts >= job.maxAttempts) {
-        continue;
-      }
-
-      const worker = this.workers[job.name];
-      if (!worker) {
-        job.failed = new Date().toISOString();
-        await this.adapter.updateJob(job);
-        continue;
-      }
-
-      // Start the job execution
-      jobsStartedThisBatch++;
-      this.executeJob(job, worker);
-    }
-
-    // Handle backoff wakeup
-    if (
-      jobsStartedThisBatch === 0 &&
-      this.runningJobs === 0 &&
-      hasSkippedBackoff
-    ) {
-      // Wake up after the shortest backoff delay
-      setTimeout(() => this.process(), nextBackoffDelay + 10);
-      // Keep state active so we can trigger again
-      this.status = 'active';
-    } else if (
-      jobsStartedThisBatch === 0 &&
-      this.runningJobs === 0 &&
-      !hasSkippedBackoff
-    ) {
-      this.status = 'inactive';
-    }
-  }
-
-  /**
-   * Executes a single job.
-   */
-  private async executeJob(job: Job<any>, worker: Worker<any>) {
-    this.runningJobs++;
-    job.active = true;
-    job.failed = null;
-    await this.adapter.updateJob(job);
-
-    this.emit('start', job);
-
-    try {
-      await worker.execute(job);
-      await this.adapter.removeJob(job);
-      this.emit('success', job);
-    } catch (error) {
-      job.attempts++;
-      job.active = false;
-      job.failed = new Date().toISOString();
-      job.metaData = {
-        ...job.metaData,
-        lastError: (error as Error).message,
-      };
-
-      if (job.attempts >= job.maxAttempts) {
-        this.emit('failure', job, error);
-        if (worker.options.onFailed) {
-          worker.options.onFailed(job, error as Error);
-        }
-      } else {
-        this.emit('failure', job, error);
-      }
-
-      await this.adapter.updateJob(job);
-    } finally {
-      this.runningJobs--;
-      this.process();
-    }
+    this.processor.stop();
   }
 }
