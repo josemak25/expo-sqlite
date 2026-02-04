@@ -132,6 +132,33 @@ queue.addJob('sync', payload, { ttl: 2592000000 });
 queue.addJob('critical', payload, { ttl: 0 });
 ```
 
+### Network Awareness
+
+For jobs that require internet connectivity (e.g., API calls, uploads), you can mark them with `onlineOnly: true`.
+
+1. **Install NetInfo**:
+
+   ```bash
+   npx expo install @react-native-community/netinfo
+   ```
+
+2. **Mark Network-Dependent Jobs**:
+
+   ```typescript
+   // This job requires network - will be skipped if offline
+   queue.addJob('upload', payload, { onlineOnly: true });
+
+   // This job runs regardless of network (e.g., local file operations)
+   queue.addJob('processLocal', data); // onlineOnly is optional
+   ```
+
+**How it works:**
+
+- **On-Demand Check**: Network status is checked **only when** a job with `onlineOnly: true` is about to run.
+- **Skip if Offline**: If the device is offline, the job is skipped (not failed) and will be retried in the next processing cycle.
+- **No Subscription**: The queue doesn't subscribe to network events globally. It checks on-demand, keeping resource usage minimal.
+- **Default**: Jobs run regardless of connectivity unless explicitly marked with `onlineOnly: true`.
+
 ---
 
 ## API
@@ -148,15 +175,19 @@ const queue = new Queue(adapter, options);
 | `adapter` | `Adapter`      | `MemoryAdapter` | (Optional) Storage adapter instance. |
 | `options` | `QueueOptions` | `{}`            | (Optional) Configuration options.    |
 
+**QueueOptions:**
+
+- `concurrency?: number` - Max concurrent jobs (default: 1).
+
 #### Methods
 
-| Method      | Signature                                                       | Description                                                         |
-| :---------- | :-------------------------------------------------------------- | :------------------------------------------------------------------ |
-| `addWorker` | `(name: string, fn: WorkerFn, options?: WorkerOptions) => void` | Registers a worker for a job type.                                  |
-| `addJob`    | `<T>(name, payload, options?: JobOptions) => Promise<string>`   | Adds a job. Options: `priority`, `attempts`, `ttl`, `timeInterval`. |
-| `start`     | `() => Promise<void>`                                           | Starts processing the queue (auto-started by addJob).               |
-| `stop`      | `() => void`                                                    | Stops processing after current jobs finish.                         |
-| `on`        | `(event: Event, callback: Function) => void`                    | Listen for lifecycle events.                                        |
+| Method      | Signature                                                       | Description                                                                       |
+| :---------- | :-------------------------------------------------------------- | :-------------------------------------------------------------------------------- |
+| `addWorker` | `(name: string, fn: WorkerFn, options?: WorkerOptions) => void` | Registers a worker for a job type.                                                |
+| `addJob`    | `<T>(name, payload, options?: JobOptions) => Promise<string>`   | Adds a job. Options: `priority`, `attempts`, `ttl`, `timeInterval`, `onlineOnly`. |
+| `start`     | `() => Promise<void>`                                           | Starts processing the queue (auto-started by addJob).                             |
+| `stop`      | `() => void`                                                    | Stops processing after current jobs finish.                                       |
+| `on`        | `(event: Event, callback: Function) => void`                    | Listen for lifecycle events.                                                      |
 
 #### Events
 

@@ -96,13 +96,17 @@
     "react": "*",
     "react-native": "*",
     "expo-sqlite": "*",
-    "@react-native-async-storage/async-storage": "*"
+    "@react-native-async-storage/async-storage": "*",
+    "@react-native-community/netinfo": "*"
   },
   "peerDependenciesMeta": {
     "expo-sqlite": {
       "optional": true
     },
     "@react-native-async-storage/async-storage": {
+      "optional": true
+    },
+    "@react-native-community/netinfo": {
       "optional": true
     }
   },

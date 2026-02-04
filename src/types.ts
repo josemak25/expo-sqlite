@@ -31,6 +31,8 @@ export interface Job<T = unknown> {
   timeInterval: number;
   /** Time To Live in milliseconds. If (now - created) > ttl, job is discarded. Default 7 days. */
   ttl: number;
+  /** Whether this job requires internet connectivity. If true and offline, job is skipped. */
+  onlineOnly?: boolean;
 }
 
 /**

@@ -68,6 +68,7 @@ export class Queue extends EventEmitter {
       retries?: number;
       timeInterval?: number;
       ttl?: number;
+      onlineOnly?: boolean;
       metaData?: Record<string, unknown>;
     } = {}
   ): Promise<string> {
@@ -82,6 +83,7 @@ export class Queue extends EventEmitter {
         options.attempts || (options.retries ? options.retries + 1 : 1),
       timeInterval: options.timeInterval || 0,
       ttl: options.ttl || 1000 * 60 * 60 * 24 * 7, // Default 7 days
+      onlineOnly: options.onlineOnly,
       active: false,
       timeout: options.timeout || 25000,
       created: new Date().toISOString(),
@@ -159,7 +161,28 @@ export class Queue extends EventEmitter {
         }
       }
 
-      // 3. Max Attempts Check
+      // 3. Network Check (Per-Job)
+      // If this job requires network, check dynamically
+      if (job.onlineOnly === true) {
+        try {
+          const NetInfo = require('@react-native-community/netinfo');
+          const networkState = await NetInfo.fetch();
+
+          if (networkState.isConnected === false) {
+            // Job needs network but we're offline - skip for now
+            return;
+          }
+        } catch {
+          // NetInfo not installed, warn and skip job
+          console.warn(
+            `expo-queue: Job "${job.name}" requires network but @react-native-community/netinfo is not installed. ` +
+              'Please install it with: npx expo install @react-native-community/netinfo'
+          );
+          return;
+        }
+      }
+
+      // 4. Max Attempts Check
       // If we exceeded maxAttempts, we shouldn't be here (should remain failed),
       // but double check to prevent infinite loops if DB state is weird.
       if (job.attempts >= job.maxAttempts) {
