@@ -33,8 +33,9 @@ export class JobProcessor {
     if (this.runningJobs >= this.concurrency) return;
 
     // Fetch next batch of jobs
-    // TODO: optimization - pass limit based on available slots
-    const jobs = await this.adapter.getConcurrentJobs();
+    // Calculate available slots to prevent over-fetching
+    const availableSlots = this.concurrency - this.runningJobs;
+    const jobs = await this.adapter.getConcurrentJobs(availableSlots);
 
     if (jobs.length === 0) {
       if (this.runningJobs === 0) {
@@ -48,7 +49,9 @@ export class JobProcessor {
     let nextBackoffDelay = Infinity;
 
     for (const job of jobs) {
-      if (this.runningJobs >= this.concurrency) break;
+      if (this.runningJobs >= this.concurrency) {
+        break;
+      }
 
       // 1. Check TTL (Hard Expiry)
       if (job.ttl > 0) {
