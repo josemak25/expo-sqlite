@@ -106,6 +106,13 @@ export interface Adapter {
    * Delete all jobs from the storage.
    */
   deleteAll(): Promise<void>;
+
+  /**
+   * Optional crash recovery method.
+   * Resets all active jobs to inactive state to handle app crashes.
+   * This prevents "ghost jobs" (jobs stuck in active state after crash).
+   */
+  recover?(): Promise<void>;
 }
 
 /**

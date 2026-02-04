@@ -42,6 +42,14 @@ class MockAdapter implements Adapter {
   async deleteAll(): Promise<void> {
     this.jobs = [];
   }
+
+  async recover(): Promise<void> {
+    this.jobs.forEach((job) => {
+      if (job.active) {
+        job.active = false;
+      }
+    });
+  }
 }
 
 describe('Queue', () => {
@@ -108,6 +116,39 @@ describe('Queue', () => {
           done();
         }
       });
+    }, 5000);
+  });
+
+  describe('Ghost Job Cleanup', () => {
+    it('should recover ghost jobs on startup', async () => {
+      const workerFn = jest.fn().mockResolvedValue(null);
+      queue.addWorker('ghost-job', workerFn);
+
+      // Add a job normally
+      await queue.addJob('ghost-job', {}, { autoStart: false });
+
+      // Simulate a crash - manually set the job to active state
+      const jobs = await adapter.getJobs();
+      expect(jobs.length).toBe(1);
+      const job = jobs[0];
+      if (!job) throw new Error('Job not found');
+
+      job.active = true;
+      await adapter.updateJob(job);
+
+      // Verify job is stuck in active state
+      const ghostJob = await adapter.getJob(job.id);
+      expect(ghostJob).toBeDefined();
+      expect(ghostJob!.active).toBe(true);
+
+      // Start queue - should recover the ghost job
+      await queue.start();
+
+      // Give it time to process
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Verify the worker was called (job was recovered and processed)
+      expect(workerFn).toHaveBeenCalled();
     });
   });
 
