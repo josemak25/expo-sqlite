@@ -15,18 +15,13 @@ import { createJob } from './utils/helpers';
 /**
  * The main Queue class responsible for managing jobs and workers.
  * Extends EventEmitter to provide lifecycle events (start, success, failure).
- *
- * This class now acts as a Facade, delegating responsibilities to:
- * - JobRegistry: Worker management
- * - JobProcessor: Processing loop and scheduling
- * - JobExecutor: Execution details
- * - Adapter: Storage
  */
 export class Queue extends EventEmitter<QueueEvents> {
   private adapter: Adapter;
   private registry: JobRegistry;
   private executor: JobExecutor;
   private processor: JobProcessor;
+  private isStarting: boolean = false;
 
   /**
    * Creates a new Queue instance.
@@ -43,7 +38,8 @@ export class Queue extends EventEmitter<QueueEvents> {
       this.adapter,
       this.registry,
       this.executor,
-      options.concurrency || 1
+      options.concurrency || 1,
+      !!options.monitorNetwork
     );
   }
 
@@ -94,16 +90,24 @@ export class Queue extends EventEmitter<QueueEvents> {
    * On first start, recovers any ghost jobs (jobs stuck in active state from previous crash).
    */
   async start() {
+    if ((this.processor as any).status === 'active') return;
+
+    this.isStarting = true;
+
     // Recover ghost jobs on startup
     await this.adapter.recover?.();
 
-    this.processor.start();
+    // Check if we were stopped during recovery
+    if (!this.isStarting) return;
+
+    await this.processor.start();
   }
 
   /**
    * Stops processing the queue.
    */
   stop() {
+    this.isStarting = false;
     this.processor.stop();
   }
 

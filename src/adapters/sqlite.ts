@@ -80,7 +80,12 @@ export class SQLiteAdapter implements Adapter {
 
       if (mappedJobs.length > 0) {
         // Mark all claimed jobs as active=1
-        const ids = mappedJobs.map((j) => `'${j.id}'`).join(',');
+        const ids = mappedJobs
+          .map((j) => {
+            j.active = true; // Update local reference for parity
+            return `'${j.id}'`;
+          })
+          .join(',');
         await tx.runAsync(
           `UPDATE ${this.tableName} SET active = 1 WHERE id IN (${ids})`
         );
@@ -147,6 +152,16 @@ export class SQLiteAdapter implements Adapter {
   async deleteAll(): Promise<void> {
     await this.initPromise;
     await this.db.runAsync(`DELETE FROM ${this.tableName}`);
+  }
+
+  /**
+   * Resets all active jobs to inactive state.
+   */
+  async recover(): Promise<void> {
+    await this.initPromise;
+    await this.db.runAsync(
+      `UPDATE ${this.tableName} SET active = 0 WHERE active = 1`
+    );
   }
 
   private mapRowToJob(row: JobRow): Job<unknown> {

@@ -60,6 +60,8 @@ export interface WorkerOptions<T = unknown> {
 export interface QueueOptions {
   /** Maximum number of concurrent jobs the queue can process globally. Default is 1. */
   concurrency?: number;
+  /** Whether to monitor network status for onlineOnly jobs. Requires @react-native-community/netinfo. Default is false. */
+  monitorNetwork?: boolean;
 }
 
 /**

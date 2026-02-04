@@ -62,4 +62,16 @@ export class MemoryAdapter implements Adapter {
   async deleteAll(): Promise<void> {
     this.jobs.clear();
   }
+
+  /**
+   * Resets all active jobs to inactive state.
+   */
+  async recover(): Promise<void> {
+    for (const job of this.jobs.values()) {
+      if (job.active) {
+        job.active = false;
+        this.jobs.set(job.id, job);
+      }
+    }
+  }
 }
