@@ -1,5 +1,5 @@
 import { Worker } from './worker';
-import type { WorkerOptions } from './types';
+import type { RegisterWorkerOptions } from './types';
 
 /**
  * Registry to manage worker implementations.
@@ -10,11 +10,8 @@ export class JobRegistry {
   /**
    * Registers a worker function to handle a specific job name.
    */
-  addWorker<T = unknown>(
-    name: string,
-    workerFn: (id: string, payload: T) => Promise<void>,
-    options: WorkerOptions<T> = {}
-  ) {
+  addWorker<T = unknown>(params: RegisterWorkerOptions<T>) {
+    const { name, workerFn, options = {} } = params;
     this.workers[name] = new Worker(name, workerFn, options) as Worker<unknown>;
   }
 

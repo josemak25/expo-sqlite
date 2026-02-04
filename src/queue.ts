@@ -32,15 +32,18 @@ export class Queue extends EventEmitter<QueueEvents> {
     super();
     this.adapter = adapter || new MemoryAdapter();
     this.registry = new JobRegistry();
-    this.executor = new JobExecutor(this.adapter, this);
+    this.executor = new JobExecutor({
+      adapter: this.adapter,
+      emitter: this,
+    });
 
-    this.processor = new JobProcessor(
-      this.adapter,
-      this.registry,
-      this.executor,
-      options.concurrency || 1,
-      !!options.monitorNetwork
-    );
+    this.processor = new JobProcessor({
+      adapter: this.adapter,
+      registry: this.registry,
+      executor: this.executor,
+      concurrency: options.concurrency || 1,
+      monitorNetwork: !!options.monitorNetwork,
+    });
   }
 
   /**
@@ -51,7 +54,11 @@ export class Queue extends EventEmitter<QueueEvents> {
     workerFn: (id: string, payload: T) => Promise<void>,
     options: WorkerOptions<T> = {}
   ) {
-    this.registry.addWorker(name, workerFn, options);
+    this.registry.addWorker({
+      name,
+      workerFn,
+      options,
+    });
   }
 
   /**

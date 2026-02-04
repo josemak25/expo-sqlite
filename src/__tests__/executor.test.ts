@@ -21,7 +21,7 @@ describe('JobExecutor', () => {
       moveToDLQ: jest.fn().mockResolvedValue(undefined),
     } as any;
     emitter = new EventEmitter();
-    executor = new JobExecutor(adapter, emitter);
+    executor = new JobExecutor({ adapter, emitter });
   });
 
   it('should execute job successfully', async () => {

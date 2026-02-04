@@ -10,7 +10,7 @@ describe('JobRegistry', () => {
 
   it('should register a worker', () => {
     const workerFn = jest.fn();
-    registry.addWorker('test', workerFn);
+    registry.addWorker({ name: 'test', workerFn });
 
     expect(registry.hasWorker('test')).toBe(true);
     const worker = registry.getWorker('test');
@@ -19,7 +19,7 @@ describe('JobRegistry', () => {
   });
 
   it('should remove a worker', () => {
-    registry.addWorker('test', jest.fn());
+    registry.addWorker({ name: 'test', workerFn: jest.fn() });
     expect(registry.hasWorker('test')).toBe(true);
 
     registry.removeWorker('test');
@@ -35,7 +35,7 @@ describe('JobRegistry', () => {
   it('should register worker with custom options', () => {
     const workerFn = jest.fn();
     const options = { concurrency: 5 };
-    registry.addWorker('test', workerFn, options);
+    registry.addWorker({ name: 'test', workerFn, options });
 
     const worker = registry.getWorker('test');
     expect(worker?.options.concurrency).toBe(5);

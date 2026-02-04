@@ -33,11 +33,17 @@ describe('JobProcessor', () => {
     } as any;
     registry = new JobRegistry();
     emitter = new EventEmitter();
-    executor = new JobExecutor(adapter, emitter);
+    executor = new JobExecutor({ adapter, emitter });
     // Spy on executor.execute to prevent it from actually running
     jest.spyOn(executor, 'execute').mockResolvedValue(undefined);
 
-    processor = new JobProcessor(adapter, registry, executor, 2, true); // concurrency 2, monitorNetwork true
+    processor = new JobProcessor({
+      adapter,
+      registry,
+      executor,
+      concurrency: 2,
+      monitorNetwork: true,
+    }); // concurrency 2, monitorNetwork true
 
     // Reset NetInfo mocks via the imported module to avoid hoisting issues
     (NetInfo.fetch as jest.Mock).mockClear();
@@ -54,7 +60,7 @@ describe('JobProcessor', () => {
     adapter.getConcurrentJobs
       .mockResolvedValueOnce([job])
       .mockResolvedValue([]);
-    registry.addWorker('test', jest.fn());
+    registry.addWorker({ name: 'test', workerFn: jest.fn() });
 
     processor.start();
     await jest.runAllTimersAsync();
@@ -71,7 +77,7 @@ describe('JobProcessor', () => {
     adapter.getConcurrentJobs
       .mockResolvedValueOnce([job1, job2])
       .mockResolvedValue([]);
-    registry.addWorker('test', jest.fn());
+    registry.addWorker({ name: 'test', workerFn: jest.fn() });
 
     processor.start();
     await jest.runAllTimersAsync();
@@ -85,7 +91,7 @@ describe('JobProcessor', () => {
     adapter.getConcurrentJobs
       .mockResolvedValueOnce([job])
       .mockResolvedValue([]);
-    registry.addWorker('paused-job', jest.fn());
+    registry.addWorker({ name: 'paused-job', workerFn: jest.fn() });
 
     processor.pauseJob('paused-job');
     processor.start();
@@ -99,7 +105,7 @@ describe('JobProcessor', () => {
   it('should resume jobs when resumeJob is called', async () => {
     const job = createJob('test', {});
     adapter.getConcurrentJobs.mockResolvedValue([job]).mockResolvedValue([]);
-    registry.addWorker('test', jest.fn());
+    registry.addWorker({ name: 'test', workerFn: jest.fn() });
 
     processor.pauseJob('test');
     processor.start();
@@ -120,7 +126,7 @@ describe('JobProcessor', () => {
     adapter.getConcurrentJobs
       .mockResolvedValueOnce([job])
       .mockResolvedValue([]);
-    registry.addWorker('test', jest.fn());
+    registry.addWorker({ name: 'test', workerFn: jest.fn() });
 
     // Mock offline
     (NetInfo.fetch as jest.Mock).mockResolvedValueOnce({ isConnected: false });
@@ -139,7 +145,7 @@ describe('JobProcessor', () => {
     adapter.getConcurrentJobs
       .mockResolvedValueOnce([job])
       .mockResolvedValue([]);
-    registry.addWorker('test', jest.fn());
+    registry.addWorker({ name: 'test', workerFn: jest.fn() });
 
     processor.start();
     await jest.runAllTimersAsync();
@@ -159,7 +165,7 @@ describe('JobProcessor', () => {
     adapter.getConcurrentJobs
       .mockResolvedValueOnce([job])
       .mockResolvedValue([]);
-    registry.addWorker('test', jest.fn());
+    registry.addWorker({ name: 'test', workerFn: jest.fn() });
 
     processor.start();
     await jest.runAllTimersAsync();
@@ -174,25 +180,25 @@ describe('JobProcessor', () => {
   });
 
   it('should not require NetInfo if monitorNetwork is false', async () => {
-    const localProcessor = new JobProcessor(
+    const localProcessor = new JobProcessor({
       adapter,
       registry,
       executor,
-      1,
-      false
-    );
+      concurrency: 1,
+      monitorNetwork: false,
+    });
     const job = createJob('test', {}, { onlineOnly: true });
     adapter.getConcurrentJobs
       .mockResolvedValueOnce([job])
       .mockResolvedValue([]);
-    registry.addWorker('test', jest.fn());
+    registry.addWorker({ name: 'test', workerFn: jest.fn() });
 
     await localProcessor.start();
     await jest.runAllTimersAsync();
 
     // isConnected should be true by default, so it should process onlineOnly job
     expect(executor.execute).toHaveBeenCalled();
-    const NetInfo = require('@react-native-community/netinfo');
-    expect(NetInfo.fetch).not.toHaveBeenCalled();
+    const NI = require('@react-native-community/netinfo');
+    expect(NI.fetch).not.toHaveBeenCalled();
   });
 });

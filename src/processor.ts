@@ -1,4 +1,4 @@
-import type { Adapter, Job } from './types';
+import type { Adapter, Job, JobProcessorOptions } from './types';
 import { JobRegistry } from './registry';
 import { JobExecutor } from './executor';
 import { isJobExpired, shouldSkipByBackoff } from './utils/helpers';
@@ -14,13 +14,19 @@ export class JobProcessor {
   private status: 'active' | 'inactive' = 'inactive';
   private unsubscribeNetInfo: (() => void) | null = null;
 
-  constructor(
-    private adapter: Adapter,
-    private registry: JobRegistry,
-    private executor: JobExecutor,
-    private concurrency: number = 1,
-    private monitorNetwork: boolean = false
-  ) {}
+  private adapter: Adapter;
+  private registry: JobRegistry;
+  private executor: JobExecutor;
+  private concurrency: number;
+  private monitorNetwork: boolean;
+
+  constructor(options: JobProcessorOptions) {
+    this.adapter = options.adapter;
+    this.registry = options.registry;
+    this.executor = options.executor;
+    this.concurrency = options.concurrency ?? 1;
+    this.monitorNetwork = options.monitorNetwork ?? false;
+  }
 
   /**
    * Starts the processing loop and network monitoring.

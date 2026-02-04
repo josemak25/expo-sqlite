@@ -187,3 +187,38 @@ export interface JobRow {
   /** Failure timestamp (ISO string) or null. */
   failed: string | null;
 }
+
+/**
+ * Options for the JobProcessor constructor.
+ */
+export interface JobProcessorOptions {
+  adapter: Adapter;
+  registry: JobRegistry;
+  executor: JobExecutor;
+  concurrency?: number;
+  monitorNetwork?: boolean;
+}
+
+/**
+ * Options for the JobExecutor constructor.
+ */
+export interface JobExecutorOptions {
+  adapter: Adapter;
+  emitter: EventEmitter;
+}
+
+/**
+ * Options for registering a worker in the JobRegistry.
+ */
+export interface RegisterWorkerOptions<T = unknown> {
+  name: string;
+  options?: WorkerOptions<T>;
+  workerFn: (id: string, payload: T) => Promise<void>;
+}
+
+// Circular dependency fix: Import Registry and Executor types if needed,
+// or define them as any if purely for typing in this file.
+// Given the current structure, we might need to be careful with imports.
+type JobRegistry = any;
+type JobExecutor = any;
+type EventEmitter = any;
