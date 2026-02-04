@@ -110,8 +110,12 @@ export class Queue extends EventEmitter {
   /**
    * Starts processing the queue.
    * If already active, this method does nothing.
+   * On first start, recovers any ghost jobs (jobs stuck in active state from previous crash).
    */
   async start() {
+    // Recover ghost jobs on startup
+    await this.adapter.recover?.();
+
     this.processor.start();
   }
 
