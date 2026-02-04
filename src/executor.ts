@@ -36,7 +36,13 @@ export class JobExecutor {
 
       // Check if max attempts reached
       if (job.attempts >= job.maxAttempts) {
-        this.emitter.emit('failure', job, error);
+        this.emitter.emit('failed', job, error);
+
+        // Move to DLQ if adapter supports it
+        if (this.adapter.moveToDLQ) {
+          await this.adapter.moveToDLQ(job);
+        }
+
         if (worker.options.onFailed) {
           worker.options.onFailed(job, error as Error);
         }

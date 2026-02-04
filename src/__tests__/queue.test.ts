@@ -230,7 +230,7 @@ describe('Queue', () => {
       queue.addWorker('fail-job', workerFn);
 
       const failurePromise = new Promise<void>((resolve, reject) => {
-        queue.on('failure', async (job) => {
+        queue.on('failed', async (job) => {
           if (job.attempts >= 2) {
             try {
               expect(attempts).toBe(2);
