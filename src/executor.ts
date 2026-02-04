@@ -1,5 +1,5 @@
 import EventEmitter from 'eventemitter3';
-import type { Adapter, Job } from './types';
+import type { Adapter, Job, JobExecutorOptions } from './types';
 import { Worker } from './worker';
 import { prepareJobFailure } from './utils/helpers';
 
@@ -8,7 +8,13 @@ import { prepareJobFailure } from './utils/helpers';
  * Manages lifecycle events (start, success, failure) and persistence updates.
  */
 export class JobExecutor {
-  constructor(private adapter: Adapter, private emitter: EventEmitter) {}
+  private adapter: Adapter;
+  private emitter: EventEmitter;
+
+  constructor(options: JobExecutorOptions) {
+    this.adapter = options.adapter;
+    this.emitter = options.emitter;
+  }
 
   /**
    * Executes a job using the provided worker.

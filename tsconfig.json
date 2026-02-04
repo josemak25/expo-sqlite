@@ -2,7 +2,9 @@
   "compilerOptions": {
     "rootDir": ".",
     "paths": {
-      "expo-queue": ["./src/index"]
+      "expo-queue": ["./src/index"],
+      "expo-queue/sqlite": ["./src/adapters/sqlite"],
+      "expo-queue/async-storage": ["./src/adapters/async-storage"]
     },
     "allowUnreachableCode": false,
     "allowUnusedLabels": false,

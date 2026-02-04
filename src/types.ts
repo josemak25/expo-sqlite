@@ -1,3 +1,7 @@
+import type EventEmitter from 'eventemitter3';
+import type { JobRegistry } from './registry';
+import type { JobExecutor } from './executor';
+
 /**
  * Represents a job in the queue.
  * @template T - The type of the job payload.
@@ -60,6 +64,8 @@ export interface WorkerOptions<T = unknown> {
 export interface QueueOptions {
   /** Maximum number of concurrent jobs the queue can process globally. Default is 1. */
   concurrency?: number;
+  /** Whether to monitor network status for onlineOnly jobs. Requires @react-native-community/netinfo. Default is false. */
+  monitorNetwork?: boolean;
 }
 
 /**
@@ -184,4 +190,32 @@ export interface JobRow {
   created: string;
   /** Failure timestamp (ISO string) or null. */
   failed: string | null;
+}
+
+/**
+ * Options for the JobProcessor constructor.
+ */
+export interface JobProcessorOptions {
+  adapter: Adapter;
+  registry: JobRegistry;
+  executor: JobExecutor;
+  concurrency?: number;
+  monitorNetwork?: boolean;
+}
+
+/**
+ * Options for the JobExecutor constructor.
+ */
+export interface JobExecutorOptions {
+  adapter: Adapter;
+  emitter: EventEmitter;
+}
+
+/**
+ * Options for registering a worker in the JobRegistry.
+ */
+export interface RegisterWorkerOptions<T = unknown> {
+  name: string;
+  options?: WorkerOptions<T>;
+  workerFn: (id: string, payload: T) => Promise<void>;
 }

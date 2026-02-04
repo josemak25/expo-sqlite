@@ -1,64 +1,78 @@
-import type { Adapter } from './types';
+import type { Adapter, Job, JobProcessorOptions } from './types';
 import { JobRegistry } from './registry';
 import { JobExecutor } from './executor';
 import { isJobExpired, shouldSkipByBackoff } from './utils/helpers';
 
+/**
+ * Orchestrates the job processing loop.
+ * Handles concurrency, network awareness, and job filtering (TTL, Backoff).
+ */
 export class JobProcessor {
-  private status: 'active' | 'inactive' = 'inactive';
   private runningJobs: number = 0;
-  private concurrency: number;
   private isConnected: boolean = true;
-  private unsubscribeNetInfo: (() => void) | null = null;
   private pausedJobNames: Set<string> = new Set();
+  private status: 'active' | 'inactive' = 'inactive';
+  private unsubscribeNetInfo: (() => void) | null = null;
 
-  constructor(
-    private adapter: Adapter,
-    private registry: JobRegistry,
-    private executor: JobExecutor,
-    concurrency: number = 1
-  ) {
-    this.concurrency = concurrency;
+  private adapter: Adapter;
+  private registry: JobRegistry;
+  private executor: JobExecutor;
+  private concurrency: number;
+  private monitorNetwork: boolean;
+
+  constructor(options: JobProcessorOptions) {
+    this.adapter = options.adapter;
+    this.registry = options.registry;
+    this.executor = options.executor;
+    this.concurrency = options.concurrency ?? 1;
+    this.monitorNetwork = options.monitorNetwork ?? false;
   }
 
-  start() {
-    if (this.status === 'active') return;
+  /**
+   * Starts the processing loop and network monitoring.
+   */
+  async start() {
+    if (this.status === 'active') {
+      return;
+    }
+
     this.status = 'active';
 
-    // Subscribe to network changes if not already subscribed
-    this.setupNetworkMonitoring();
+    // Start network monitoring ONLY if enabled
+    if (this.monitorNetwork && !this.unsubscribeNetInfo) {
+      try {
+        // Require only when needed to avoid mandatory dependency
+        const NetInfo = require('@react-native-community/netinfo');
+
+        // Get initial state
+        const state = await NetInfo.fetch();
+        this.isConnected = !!state.isConnected;
+
+        this.unsubscribeNetInfo = NetInfo.addEventListener((newState: any) => {
+          const wasConnected = this.isConnected;
+          this.isConnected = !!newState.isConnected;
+
+          // If we regained connection, trigger processing
+          if (!wasConnected && this.isConnected && this.status === 'active') {
+            this.process();
+          }
+        });
+      } catch (error) {
+        console.warn(
+          '[expo-queue] Failed to initialize network monitoring. Ensure @react-native-community/netinfo is installed.',
+          error
+        );
+        // Fallback to connected if we can't monitor
+        this.isConnected = true;
+      }
+    }
 
     this.process();
   }
 
-  private setupNetworkMonitoring() {
-    if (this.unsubscribeNetInfo) return;
-
-    try {
-      const NetInfo = require('@react-native-community/netinfo');
-
-      // Initialize state
-      NetInfo.fetch().then((state: { isConnected: boolean | null }) => {
-        this.isConnected = state.isConnected !== false;
-      });
-
-      // Subscribe to changes
-      this.unsubscribeNetInfo = NetInfo.addEventListener(
-        (state: { isConnected: boolean | null }) => {
-          const wasConnected = this.isConnected;
-          this.isConnected = state.isConnected !== false;
-
-          // If network recovered, trigger processing
-          if (!wasConnected && this.isConnected && this.status === 'active') {
-            this.process();
-          }
-        }
-      );
-    } catch {
-      // NetInfo not available, assume always connected or handle as before
-      this.isConnected = true;
-    }
-  }
-
+  /**
+   * Stops the processing loop and network monitoring.
+   */
   stop() {
     this.status = 'inactive';
     if (this.unsubscribeNetInfo) {
@@ -81,22 +95,25 @@ export class JobProcessor {
    */
   resumeJob(name: string) {
     if (this.pausedJobNames.delete(name)) {
-      // If we were active, trigger a process loop to pick up newly resumed jobs
-      if (this.status === 'active') {
-        this.process();
-      }
+      // Ensure we are active and trigger processing
+      this.status = 'active';
+      this.process();
     }
   }
 
+  /**
+   * The core processing loop.
+   * Fetches available jobs from the adapter and executes them within concurrency limits.
+   */
   private async process() {
     if (this.status === 'inactive') return;
-
-    // Check global concurrency
-    if (this.runningJobs >= this.concurrency) return;
 
     // Fetch next batch of jobs
     // Calculate available slots to prevent over-fetching
     const availableSlots = this.concurrency - this.runningJobs;
+    if (availableSlots <= 0) return;
+
+    // Fetch jobs that are NOT currently active
     const jobs = await this.adapter.getConcurrentJobs(availableSlots);
 
     if (jobs.length === 0) {
@@ -110,13 +127,27 @@ export class JobProcessor {
     let hasSkippedBackoff = false;
     let nextBackoffDelay = Infinity;
 
+    const unclaim = async (j: Job<any>) => {
+      j.active = false;
+      await this.adapter.updateJob(j);
+    };
+
     for (const job of jobs) {
+      // Check if we stopped mid-batch. Use a cast to avoid narrowing issues.
+      if ((this.status as string) === 'inactive') {
+        await unclaim(job);
+        continue;
+      }
+
       if (this.runningJobs >= this.concurrency) {
-        break;
+        // Unclaim jobs beyond concurrency limit if we over-fetched
+        await unclaim(job);
+        continue;
       }
 
       // Check if this job type is paused
       if (this.pausedJobNames.has(job.name)) {
+        await unclaim(job);
         continue;
       }
 
@@ -131,26 +162,31 @@ export class JobProcessor {
       if (shouldSkip) {
         hasSkippedBackoff = true;
         nextBackoffDelay = Math.min(nextBackoffDelay, remaining);
+        await unclaim(job);
         continue;
       }
 
       // 3. Network Check (Per-Job)
       if (job.onlineOnly === true && !this.isConnected) {
+        await unclaim(job);
         continue;
       }
 
       // 4. Max Attempts Check
       if (job.attempts >= job.maxAttempts) {
+        // Technically shouldn't happen due to adapter filter, but for safety:
+        await unclaim(job);
         continue;
       }
 
       const worker = this.registry.getWorker(job.name);
       if (!worker) {
+        // Record failure due to missing worker
         job.failed = new Date().toISOString();
-        // We might want to mark it as failed with error "No worker found"
-        // For now matching original logic: just fail timestamp and update
-        // But original logic didn't increment attempts or add error message here?
-        // Original: job.failed = new Date().toISOString(); await this.adapter.updateJob(job); continue;
+        job.active = false;
+        if (job.metaData) {
+          job.metaData.lastError = 'No worker found';
+        }
         await this.adapter.updateJob(job);
         continue;
       }
@@ -166,20 +202,20 @@ export class JobProcessor {
       });
     }
 
-    // Handle backoff wakeup
-    if (
-      jobsStartedThisBatch === 0 &&
-      this.runningJobs === 0 &&
-      hasSkippedBackoff
-    ) {
-      setTimeout(() => this.process(), nextBackoffDelay + 10);
-      // Keep state active so we can trigger again
-      this.status = 'active';
+    // Scheduling logic
+    if (jobsStartedThisBatch > 0) {
+      // We started some jobs, keep trying to fill capacity
+      this.process();
+    } else if (hasSkippedBackoff) {
+      // No jobs started, but some are waiting for backoff.
+      // Schedule a retry after the shortest backoff delay.
+      setTimeout(() => this.process(), nextBackoffDelay);
     } else if (
       jobsStartedThisBatch === 0 &&
       this.runningJobs === 0 &&
       !hasSkippedBackoff
     ) {
+      // Nothing to do, go inactive.
       this.status = 'inactive';
     }
   }

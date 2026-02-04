@@ -78,6 +78,24 @@ export class AsyncStorageAdapter implements Adapter {
     await AsyncStorage.removeItem(this.key);
   }
 
+  /**
+   * Resets all active jobs to inactive state.
+   */
+  async recover(): Promise<void> {
+    const jobs = await this.getJobsFromStorage();
+    let hasChanges = false;
+    jobs.forEach((job) => {
+      if (job.active) {
+        job.active = false;
+        hasChanges = true;
+      }
+    });
+
+    if (hasChanges) {
+      await this.saveJobsToStorage(jobs);
+    }
+  }
+
   // Helper methods
   private async getJobsFromStorage(): Promise<Job<unknown>[]> {
     try {
