@@ -1,6 +1,7 @@
 import EventEmitter from 'eventemitter3';
 import type { Adapter, Job } from './types';
 import { Worker } from './worker';
+import { prepareJobFailure } from './utils/helpers';
 
 /**
  * Handles the execution of a single job.
@@ -26,17 +27,15 @@ export class JobExecutor {
       await this.adapter.removeJob(job);
       this.emitter.emit('success', job);
     } catch (error) {
-      job.attempts++;
-      job.active = false;
-      job.failed = new Date().toISOString();
-      job.metaData = {
-        ...job.metaData,
-        lastError: (error as Error).message,
-      };
+      // Use helper to prepare job state after failure
+      const updatedJob = prepareJobFailure(job, error as Error);
+
+      // Sync back properties to the object we have (or update local reference)
+      Object.assign(job, updatedJob);
 
       // Check if max attempts reached
       if (job.attempts >= job.maxAttempts) {
-        this.emitter.emit('failed', job, error);
+        this.emitter.emit('failed', job, error as Error);
 
         // Move to DLQ if adapter supports it
         if (this.adapter.moveToDLQ) {
@@ -48,7 +47,7 @@ export class JobExecutor {
         }
       } else {
         // Just a retry failure, not final
-        this.emitter.emit('failure', job, error);
+        this.emitter.emit('failure', job, error as Error);
       }
 
       await this.adapter.updateJob(job);

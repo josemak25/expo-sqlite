@@ -1,16 +1,16 @@
 import type {
   Adapter,
-  Job,
+  JobOptions,
   QueueEvents,
   QueueOptions,
   WorkerOptions,
 } from './types';
 import { MemoryAdapter } from './adapters/memory';
-import { v4 as uuidv4 } from 'uuid';
 import EventEmitter from 'eventemitter3';
 import { JobRegistry } from './registry';
 import { JobExecutor } from './executor';
 import { JobProcessor } from './processor';
+import { createJob } from './utils/helpers';
 
 /**
  * The main Queue class responsible for managing jobs and workers.
@@ -76,35 +76,10 @@ export class Queue extends EventEmitter<QueueEvents> {
   async addJob<T = unknown>(
     name: string,
     payload: T = {} as T,
-    options: {
-      priority?: number;
-      timeout?: number;
-      attempts?: number;
-      retries?: number;
-      timeInterval?: number;
-      ttl?: number;
-      onlineOnly?: boolean;
-      autoStart?: boolean;
-      metaData?: Record<string, unknown>;
-    } = {}
+    options: JobOptions = {}
   ): Promise<string> {
     const autoStart = options.autoStart !== false;
-    const job: Job<T> = {
-      id: uuidv4(),
-      name,
-      payload,
-      metaData: options.metaData || {},
-      priority: options.priority || 0,
-      attempts: 0,
-      maxAttempts:
-        options.attempts || (options.retries ? options.retries + 1 : 1),
-      timeInterval: options.timeInterval || 0,
-      ttl: options.ttl || 1000 * 60 * 60 * 24 * 7, // Default 7 days
-      onlineOnly: options.onlineOnly,
-      active: false,
-      timeout: options.timeout || 25000,
-      created: new Date().toISOString(),
-    };
+    const job = createJob(name, payload, options);
 
     await this.adapter.addJob(job);
     if (autoStart) {

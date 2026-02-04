@@ -63,6 +63,30 @@ export interface QueueOptions {
 }
 
 /**
+ * Options for adding a job to the queue.
+ */
+export interface JobOptions {
+  /** Job priority. Higher values are processed first. Default is 0. */
+  priority?: number;
+  /** Maximum time in milliseconds the job is allowed to run before timing out. Default is 25000. */
+  timeout?: number;
+  /** Maximum number of attempts allowed for this job. Default 1. */
+  attempts?: number;
+  /** Alias for attempts (maxAttempts = retries + 1). */
+  retries?: number;
+  /** Delay in milliseconds between retry attempts. Default 0. */
+  timeInterval?: number;
+  /** Time To Live in milliseconds. Default 7 days. */
+  ttl?: number;
+  /** Whether this job requires internet connectivity. */
+  onlineOnly?: boolean;
+  /** Whether the queue should start immediately after adding this job. Default is true. */
+  autoStart?: boolean;
+  /** Arbitrary metadata for the job. */
+  metaData?: Record<string, unknown>;
+}
+
+/**
  * Events emitted by the Queue.
  */
 export interface QueueEvents {
