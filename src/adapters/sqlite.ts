@@ -1,5 +1,6 @@
 import * as SQLite from 'expo-sqlite';
-import type { Adapter, Job, JobRow } from '../types';
+import type { Adapter, Job, JobRow, JobOptions } from '../types';
+import { omit, pick } from '../utils/helpers';
 
 export class SQLiteAdapter implements Adapter {
   private db: SQLite.SQLiteDatabase;
@@ -37,15 +38,17 @@ export class SQLiteAdapter implements Adapter {
         job.id,
         job.name,
         JSON.stringify(job.payload),
-        JSON.stringify({
-          attempts: job.attempts,
-          maxAttempts: job.maxAttempts,
-          timeInterval: job.timeInterval,
-          ttl: job.ttl,
-          onlineOnly: job.onlineOnly,
-          workerName: job.workerName,
-          metaData: job.metaData,
-        }),
+        JSON.stringify(
+          pick(job, [
+            'ttl',
+            'metaData',
+            'attempts',
+            'workerName',
+            'onlineOnly',
+            'maxAttempts',
+            'timeInterval',
+          ])
+        ),
         job.priority,
         job.active ? 1 : 0,
         job.timeout,
@@ -96,16 +99,17 @@ export class SQLiteAdapter implements Adapter {
       [
         job.active ? 1 : 0,
         job.failed || null,
-        JSON.stringify({
-          attempts: job.attempts,
-          maxAttempts: job.maxAttempts,
-          timeInterval: job.timeInterval,
-          ttl: job.ttl,
-          onlineOnly: job.onlineOnly,
-          workerName: job.workerName,
-          metaData: job.metaData,
-        }),
-        job.id,
+        JSON.stringify(
+          pick(job, [
+            'attempts',
+            'maxAttempts',
+            'timeInterval',
+            'ttl',
+            'onlineOnly',
+            'workerName',
+            'metaData',
+          ])
+        ),
         job.id,
       ]
     );
@@ -120,23 +124,24 @@ export class SQLiteAdapter implements Adapter {
 
   async getJob(id: string): Promise<Job<unknown> | null> {
     await this.initPromise;
-    const result = await this.db.getAllAsync<any>(
+    const result = await this.db.getAllAsync<JobRow>(
       `SELECT * FROM ${this.tableName} WHERE id = ?`,
       [id]
     );
 
-    if (result.length > 0) {
-      return this.mapRowToJob(result[0]);
+    const row = result[0];
+    if (row) {
+      return this.mapRowToJob(row);
     }
     return null;
   }
 
   async getJobs(): Promise<Job<unknown>[]> {
     await this.initPromise;
-    const result = await this.db.getAllAsync<any>(
+    const result = await this.db.getAllAsync<JobRow>(
       `SELECT * FROM ${this.tableName}`
     );
-    return result.map(this.mapRowToJob);
+    return result.map((row) => this.mapRowToJob(row));
   }
 
   async deleteAll(): Promise<void> {
@@ -144,24 +149,21 @@ export class SQLiteAdapter implements Adapter {
     await this.db.runAsync(`DELETE FROM ${this.tableName}`);
   }
 
-  private mapRowToJob(row: any): Job<unknown> {
-    const data = JSON.parse(row.data || '{}');
+  private mapRowToJob(row: JobRow): Job<unknown> {
+    const data = JSON.parse(row.data || '{}') as JobOptions & {
+      maxAttempts?: number;
+      workerName?: string;
+    };
+
     return {
-      id: row.id,
-      name: row.name,
+      ...omit(row, ['data']),
+      ...data,
+      active: !!row.active,
+      attempts: data.attempts ?? 0,
       payload: JSON.parse(row.payload),
-      metaData: data.metaData,
-      attempts: data.attempts || 0,
       maxAttempts: data.maxAttempts || 1,
       timeInterval: data.timeInterval || 0,
-      ttl: data.ttl || 1000 * 60 * 60 * 24 * 7,
-      onlineOnly: data.onlineOnly,
-      workerName: data.workerName,
-      priority: row.priority,
-      active: !!row.active,
-      timeout: row.timeout,
-      created: row.created,
-      failed: row.failed,
-    };
+      ttl: data.ttl || 1000 * 60 * 60 * 24 * 7, // Default 7 days
+    } as Job<unknown>;
   }
 }

@@ -88,16 +88,17 @@ export interface JobOptions {
 
 /**
  * Events emitted by the Queue.
+ * @template T - The type of the job payload.
  */
-export interface QueueEvents {
+export interface QueueEvents<T = unknown> {
   /** Fired when a job execution starts. */
-  start: [job: Job<any>];
+  start: [job: Job<T>];
   /** Fired when a job completes successfully. */
-  success: [job: Job<any>, result?: any];
+  success: [job: Job<T>, result?: unknown];
   /** Fired when a job fails (might be retried). */
-  failure: [job: Job<any>, error: Error];
+  failure: [job: Job<T>, error: Error];
   /** Fired when a job has exhausted all retries. */
-  failed: [job: Job<any>, error: Error];
+  failed: [job: Job<T>, error: Error];
 }
 
 /**
@@ -145,7 +146,7 @@ export interface Adapter {
    * Fired when a job exceeds maxAttempts.
    * @param job - The job to move to DLQ.
    */
-  moveToDLQ?(job: Job<any>): Promise<void>;
+  moveToDLQ?<T = unknown>(job: Job<T>): Promise<void>;
 
   /**
    * Delete all jobs from the storage.

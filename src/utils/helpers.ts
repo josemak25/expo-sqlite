@@ -6,7 +6,7 @@ import type { Job, JobOptions } from '../types';
  * @param job - The job to check.
  * @returns True if the job is expired and should be discarded.
  */
-export function isJobExpired(job: Job<any>): boolean {
+export function isJobExpired<T>(job: Job<T>): boolean {
   if (job.ttl <= 0) return false;
 
   const created = new Date(job.created).getTime();
@@ -24,7 +24,7 @@ export function isJobExpired(job: Job<any>): boolean {
  * @param job - The failing job.
  * @returns Delay in milliseconds.
  */
-export function calculateRetryDelay(job: Job<any>): number {
+export function calculateRetryDelay<T>(job: Job<T>): number {
   // exponential backoff: baseDelay * 2^attempts
   const exponentialDelay = job.timeInterval * Math.pow(2, job.attempts);
 
@@ -39,7 +39,7 @@ export function calculateRetryDelay(job: Job<any>): number {
  * @param job - The job to check.
  * @returns Object containing whether to skip and the remaining delay.
  */
-export function shouldSkipByBackoff(job: Job<any>): {
+export function shouldSkipByBackoff<T>(job: Job<T>): {
   shouldSkip: boolean;
   remaining: number;
 } {
@@ -111,4 +111,44 @@ export function createJob<T>(
     timeout: options.timeout || 25000,
     created: new Date().toISOString(),
   };
+}
+
+/**
+ * Creates a new object by picking specified properties from a source object.
+ *
+ * @template T - Source object type.
+ * @template K - Keys to pick.
+ * @param obj - The source object.
+ * @param keys - Array of keys to pick.
+ */
+export function pick<T extends object, K extends keyof T>(
+  obj: T,
+  keys: K[]
+): Pick<T, K> {
+  const result = {} as Pick<T, K>;
+  keys.forEach((key) => {
+    if (key in obj) {
+      result[key] = obj[key];
+    }
+  });
+  return result;
+}
+
+/**
+ * Creates a new object by omitting specified properties from a source object.
+ *
+ * @template T - Source object type.
+ * @template K - Keys to omit.
+ * @param obj - The source object.
+ * @param keys - Array of keys to omit.
+ */
+export function omit<T extends object, K extends keyof T>(
+  obj: T,
+  keys: K[]
+): Omit<T, K> {
+  const result = { ...obj };
+  keys.forEach((key) => {
+    delete result[key];
+  });
+  return result as Omit<T, K>;
 }

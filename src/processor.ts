@@ -37,20 +37,22 @@ export class JobProcessor {
       const NetInfo = require('@react-native-community/netinfo');
 
       // Initialize state
-      NetInfo.fetch().then((state: any) => {
+      NetInfo.fetch().then((state: { isConnected: boolean | null }) => {
         this.isConnected = state.isConnected !== false;
       });
 
       // Subscribe to changes
-      this.unsubscribeNetInfo = NetInfo.addEventListener((state: any) => {
-        const wasConnected = this.isConnected;
-        this.isConnected = state.isConnected !== false;
+      this.unsubscribeNetInfo = NetInfo.addEventListener(
+        (state: { isConnected: boolean | null }) => {
+          const wasConnected = this.isConnected;
+          this.isConnected = state.isConnected !== false;
 
-        // If network recovered, trigger processing
-        if (!wasConnected && this.isConnected && this.status === 'active') {
-          this.process();
+          // If network recovered, trigger processing
+          if (!wasConnected && this.isConnected && this.status === 'active') {
+            this.process();
+          }
         }
-      });
+      );
     } catch {
       // NetInfo not available, assume always connected or handle as before
       this.isConnected = true;
