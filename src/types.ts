@@ -1,3 +1,7 @@
+import type EventEmitter from 'eventemitter3';
+import type { JobRegistry } from './registry';
+import type { JobExecutor } from './executor';
+
 /**
  * Represents a job in the queue.
  * @template T - The type of the job payload.
@@ -215,10 +219,3 @@ export interface RegisterWorkerOptions<T = unknown> {
   options?: WorkerOptions<T>;
   workerFn: (id: string, payload: T) => Promise<void>;
 }
-
-// Circular dependency fix: Import Registry and Executor types if needed,
-// or define them as any if purely for typing in this file.
-// Given the current structure, we might need to be careful with imports.
-type JobRegistry = any;
-type JobExecutor = any;
-type EventEmitter = any;
