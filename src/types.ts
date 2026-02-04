@@ -63,17 +63,42 @@ export interface QueueOptions {
 }
 
 /**
- * Events emitted by the Queue.
+ * Options for adding a job to the queue.
  */
-export interface QueueEvents {
+export interface JobOptions {
+  /** Job priority. Higher values are processed first. Default is 0. */
+  priority?: number;
+  /** Maximum time in milliseconds the job is allowed to run before timing out. Default is 25000. */
+  timeout?: number;
+  /** Maximum number of attempts allowed for this job. Default 1. */
+  attempts?: number;
+  /** Alias for attempts (maxAttempts = retries + 1). */
+  retries?: number;
+  /** Delay in milliseconds between retry attempts. Default 0. */
+  timeInterval?: number;
+  /** Time To Live in milliseconds. Default 7 days. */
+  ttl?: number;
+  /** Whether this job requires internet connectivity. */
+  onlineOnly?: boolean;
+  /** Whether the queue should start immediately after adding this job. Default is true. */
+  autoStart?: boolean;
+  /** Arbitrary metadata for the job. */
+  metaData?: Record<string, unknown>;
+}
+
+/**
+ * Events emitted by the Queue.
+ * @template T - The type of the job payload.
+ */
+export interface QueueEvents<T = unknown> {
   /** Fired when a job execution starts. */
-  start: [job: Job<any>];
+  start: [job: Job<T>];
   /** Fired when a job completes successfully. */
-  success: [job: Job<any>, result?: any];
+  success: [job: Job<T>, result?: unknown];
   /** Fired when a job fails (might be retried). */
-  failure: [job: Job<any>, error: Error];
+  failure: [job: Job<T>, error: Error];
   /** Fired when a job has exhausted all retries. */
-  failed: [job: Job<any>, error: Error];
+  failed: [job: Job<T>, error: Error];
 }
 
 /**
@@ -121,7 +146,7 @@ export interface Adapter {
    * Fired when a job exceeds maxAttempts.
    * @param job - The job to move to DLQ.
    */
-  moveToDLQ?(job: Job<any>): Promise<void>;
+  moveToDLQ?<T = unknown>(job: Job<T>): Promise<void>;
 
   /**
    * Delete all jobs from the storage.

@@ -1,6 +1,7 @@
 import type { Adapter } from './types';
 import { JobRegistry } from './registry';
 import { JobExecutor } from './executor';
+import { isJobExpired, shouldSkipByBackoff } from './utils/helpers';
 
 export class JobProcessor {
   private status: 'active' | 'inactive' = 'inactive';
@@ -36,20 +37,22 @@ export class JobProcessor {
       const NetInfo = require('@react-native-community/netinfo');
 
       // Initialize state
-      NetInfo.fetch().then((state: any) => {
+      NetInfo.fetch().then((state: { isConnected: boolean | null }) => {
         this.isConnected = state.isConnected !== false;
       });
 
       // Subscribe to changes
-      this.unsubscribeNetInfo = NetInfo.addEventListener((state: any) => {
-        const wasConnected = this.isConnected;
-        this.isConnected = state.isConnected !== false;
+      this.unsubscribeNetInfo = NetInfo.addEventListener(
+        (state: { isConnected: boolean | null }) => {
+          const wasConnected = this.isConnected;
+          this.isConnected = state.isConnected !== false;
 
-        // If network recovered, trigger processing
-        if (!wasConnected && this.isConnected && this.status === 'active') {
-          this.process();
+          // If network recovered, trigger processing
+          if (!wasConnected && this.isConnected && this.status === 'active') {
+            this.process();
+          }
         }
-      });
+      );
     } catch {
       // NetInfo not available, assume always connected or handle as before
       this.isConnected = true;
@@ -118,35 +121,17 @@ export class JobProcessor {
       }
 
       // 1. Check TTL (Hard Expiry)
-      if (job.ttl > 0) {
-        const created = new Date(job.created).getTime();
-        const now = Date.now();
-        if (now - created > job.ttl) {
-          await this.adapter.removeJob(job);
-          continue;
-        }
+      if (isJobExpired(job)) {
+        await this.adapter.removeJob(job);
+        continue;
       }
 
-      // 2. Check TimeInterval (Exponential Backoff)
-      if (job.failed && job.attempts < job.maxAttempts) {
-        const lastFailed = new Date(job.failed).getTime();
-        const now = Date.now();
-        const elapsed = now - lastFailed;
-
-        // Calculate exponential backoff: baseDelay * 2^attempts
-        // This prevents hammering servers and saves battery
-        const exponentialDelay = job.timeInterval * Math.pow(2, job.attempts);
-
-        // Add jitter: randomized variance between 0 and base interval
-        // This prevents the "thundering herd" effect by spreading out retries
-        const jitter = Math.random() * job.timeInterval;
-        const totalDelay = exponentialDelay + jitter;
-
-        if (elapsed < totalDelay) {
-          hasSkippedBackoff = true;
-          nextBackoffDelay = Math.min(nextBackoffDelay, totalDelay - elapsed);
-          continue;
-        }
+      // 2. Check TimeInterval (Exponential Backoff + Jitter)
+      const { shouldSkip, remaining } = shouldSkipByBackoff(job);
+      if (shouldSkip) {
+        hasSkippedBackoff = true;
+        nextBackoffDelay = Math.min(nextBackoffDelay, remaining);
+        continue;
       }
 
       // 3. Network Check (Per-Job)
