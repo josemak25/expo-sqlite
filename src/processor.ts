@@ -63,16 +63,21 @@ export class JobProcessor {
         }
       }
 
-      // 2. Check TimeInterval (Backoff)
+      // 2. Check TimeInterval (Exponential Backoff)
       if (job.failed && job.attempts < job.maxAttempts) {
         const lastFailed = new Date(job.failed).getTime();
         const now = Date.now();
         const elapsed = now - lastFailed;
-        if (elapsed < job.timeInterval) {
+
+        // Calculate exponential backoff: baseDelay * 2^attempts
+        // This prevents hammering servers and saves battery
+        const exponentialDelay = job.timeInterval * Math.pow(2, job.attempts);
+
+        if (elapsed < exponentialDelay) {
           hasSkippedBackoff = true;
           nextBackoffDelay = Math.min(
             nextBackoffDelay,
-            job.timeInterval - elapsed
+            exponentialDelay - elapsed
           );
           continue;
         }
