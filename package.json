@@ -1,7 +1,7 @@
 {
-  "name": "expo-queue",
+  "name": "react-native-task-queue",
   "version": "0.1.0",
-  "description": "A robust queue system for Expo apps using SQLite",
+  "description": "A robust, type-safe job queue for React Native and Expo with SQLite persistence, retry logic, and background processing",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
   "exports": {
@@ -52,19 +52,30 @@
   },
   "keywords": [
     "react-native",
+    "expo",
+    "queue",
+    "job-queue",
+    "task-queue",
+    "background-jobs",
+    "sqlite",
+    "async-storage",
+    "worker",
+    "job-processor",
+    "retry-logic",
+    "exponential-backoff",
     "ios",
     "android"
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/josemak25/expo-queue.git"
+    "url": "git+https://github.com/josemak25/react-native-task-queue.git"
   },
   "author": "Amakiri Joseph <amakirij@gmail.com> (https://github.com/josemak25)",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/josemak25/expo-queue/issues"
+    "url": "https://github.com/josemak25/react-native-task-queue/issues"
   },
-  "homepage": "https://github.com/josemak25/expo-queue#readme",
+  "homepage": "https://github.com/josemak25/react-native-task-queue#readme",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },

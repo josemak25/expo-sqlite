@@ -1,4 +1,11 @@
-# expo-queue
+# react-native-task-queue
+
+[![NPM Version](https://img.shields.io/npm/v/react-native-task-queue.svg?style=flat-square)](https://www.npmjs.com/package/react-native-task-queue)
+[![NPM Downloads](https://img.shields.io/npm/dm/react-native-task-queue.svg?style=flat-square)](https://www.npmjs.com/package/react-native-task-queue)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/josemak25/react-native-task-queue/ci.yml?branch=main&style=flat-square)](https://github.com/josemak25/react-native-task-queue/actions)
+[![License](https://img.shields.io/npm/l/react-native-task-queue.svg?style=flat-square)](https://github.com/josemak25/react-native-task-queue/blob/main/LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue?style=flat-square)](https://www.typescriptlang.org/)
+[![Expo Compatible](https://img.shields.io/badge/Expo-Compatible-000020?style=flat-square&logo=expo)](https://expo.dev/)
 
 A robust, flexible, and type-safe job queue system for Expo and React Native apps. Designed for reliability, memory efficiency, and high developer experience.
 
@@ -29,14 +36,14 @@ A robust, flexible, and type-safe job queue system for Expo and React Native app
 ### 1. Installation
 
 ```bash
-yarn add expo-queue uuid
+yarn add react-native-task-queue uuid
 npx expo install expo-sqlite # Optional: for SQLite persistence
 ```
 
 ### 2. Basic Setup (In-Memory)
 
 ```typescript
-import { Queue } from 'expo-queue';
+import { Queue } from 'react-native-task-queue';
 
 // 1. Initialize the Queue
 const queue = new Queue();
@@ -62,8 +69,8 @@ Choose the persistence layer that fits your app's needs.
 Atomic, reliable, and highly performant. Best for critical background tasks.
 
 ```typescript
-import { Queue } from 'expo-queue';
-import { SQLiteAdapter } from 'expo-queue/sqlite';
+import { Queue } from 'react-native-task-queue';
+import { SQLiteAdapter } from 'react-native-task-queue/sqlite';
 
 const adapter = new SQLiteAdapter('app-queue.db');
 const queue = new Queue(adapter);
@@ -74,7 +81,7 @@ const queue = new Queue(adapter);
 Good for lightweight, non-critical persistence.
 
 ```typescript
-import { AsyncStorageAdapter } from 'expo-queue/async-storage';
+import { AsyncStorageAdapter } from 'react-native-task-queue/async-storage';
 const queue = new Queue(new AsyncStorageAdapter());
 ```
 
@@ -118,7 +125,7 @@ queue.resumeJob('heavy-sync');
 
 ## 🧪 Custom Adapters
 
-`expo-queue` is designed to be easily extensible. All core logic (retries, backoff, TTL, concurrency) is decoupled from storage, so you only need to implement a "dumb" persistence layer.
+`react-native-task-queue` is designed to be easily extensible. All core logic (retries, backoff, TTL, concurrency) is decoupled from storage, so you only need to implement a "dumb" persistence layer.
 
 ### Implementation Guides
 
