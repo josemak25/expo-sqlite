@@ -55,15 +55,15 @@ export default class JobModel extends Model {
 
 ## 3. Adapter Implementation
 
-Create `WatermelonAdapter.ts`. This adapter handles the mapping between the `expo-queue` `Job` interface and the WatermelonDB `JobModel`.
+Create `WatermelonAdapter.ts`. This adapter handles the mapping between the `react-native-task-queue` `Job` interface and the WatermelonDB `JobModel`.
 
 ```typescript
 import { Database, Q } from '@nozbe/watermelondb';
-import { Adapter, Job, omit, pick, JobOptions } from 'expo-queue';
+import { Adapter, Job, omit, pick, JobOptions } from 'react-native-task-queue';
 import JobModel from './JobModel'; // Path to your model
 
 /**
- * A reactive WatermelonDB adapter for expo-queue.
+ * A reactive WatermelonDB adapter for react-native-task-queue.
  */
 export class WatermelonAdapter implements Adapter {
   constructor(private db: Database) {}
@@ -242,7 +242,7 @@ export class WatermelonAdapter implements Adapter {
 Pass your WatermelonDB `Database` instance to the adapter:
 
 ```typescript
-import { Queue } from 'expo-queue';
+import { Queue } from 'react-native-task-queue';
 import { database } from './your-watermelondb-setup';
 import { WatermelonAdapter } from './WatermelonAdapter';
 

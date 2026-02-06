@@ -1,6 +1,6 @@
 {
   "name": "react-native-task-queue",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A robust, type-safe job queue for React Native and Expo with SQLite persistence, retry logic, and background processing",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
@@ -42,7 +42,7 @@
     "!**/.*"
   ],
   "scripts": {
-    "example": "yarn workspace expo-queue-example",
+    "example": "yarn workspace react-native-task-queue-example",
     "clean": "del-cli lib",
     "prepare": "bob build",
     "typecheck": "tsc",

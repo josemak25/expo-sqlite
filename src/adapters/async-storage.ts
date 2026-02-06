@@ -8,7 +8,7 @@ import type { Adapter, Job } from '../types';
 export class AsyncStorageAdapter implements Adapter {
   private key: string;
 
-  constructor(key: string = 'expo-queue-jobs') {
+  constructor(key: string = 'react-native-task-queue-jobs') {
     this.key = key;
   }
 

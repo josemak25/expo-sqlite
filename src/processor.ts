@@ -59,7 +59,7 @@ export class JobProcessor {
         });
       } catch (error) {
         console.warn(
-          '[expo-queue] Failed to initialize network monitoring. Ensure @react-native-community/netinfo is installed.',
+          '[react-native-task-queue] Failed to initialize network monitoring. Ensure @react-native-community/netinfo is installed.',
           error
         );
         // Fallback to connected if we can't monitor

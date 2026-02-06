@@ -10,8 +10,8 @@ import {
   Switch,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { Queue } from 'expo-queue';
-import { SQLiteAdapter } from 'expo-queue/sqlite';
+import { Queue } from 'react-native-task-queue';
+import { SQLiteAdapter } from 'react-native-task-queue/sqlite';
 
 // Types
 type Todo = {

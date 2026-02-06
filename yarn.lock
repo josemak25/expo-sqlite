@@ -6552,24 +6552,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"expo-queue-example@workspace:example":
-  version: 0.0.0-use.local
-  resolution: "expo-queue-example@workspace:example"
-  dependencies:
-    "@expo/metro-runtime": "npm:~6.1.2"
-    "@react-native-community/netinfo": "npm:^11.3.0"
-    expo: "npm:~54.0.33"
-    expo-sqlite: "npm:^16.0.10"
-    expo-status-bar: "npm:~3.0.9"
-    react: "npm:19.1.0"
-    react-dom: "npm:19.1.0"
-    react-native: "npm:0.81.5"
-    react-native-builder-bob: "npm:^0.40.17"
-    react-native-monorepo-config: "npm:^0.3.1"
-    react-native-web: "npm:~0.21.0"
-  languageName: unknown
-  linkType: soft
-
 "expo-server@npm:^1.0.5":
   version: 1.0.5
   resolution: "expo-server@npm:1.0.5"
@@ -10907,6 +10889,24 @@ __metadata:
   checksum: 10c0/c711f6a898ae263b68aef3bf8bd9c3806cd489676da8c5480dd155859b47bcd49a7700f3c056896c19b3ce2c2c3ea42a5482def93b0ff03febbe023ceb128c96
   languageName: node
   linkType: hard
+
+"react-native-task-queue-example@workspace:example":
+  version: 0.0.0-use.local
+  resolution: "react-native-task-queue-example@workspace:example"
+  dependencies:
+    "@expo/metro-runtime": "npm:~6.1.2"
+    "@react-native-community/netinfo": "npm:^11.3.0"
+    expo: "npm:~54.0.33"
+    expo-sqlite: "npm:^16.0.10"
+    expo-status-bar: "npm:~3.0.9"
+    react: "npm:19.1.0"
+    react-dom: "npm:19.1.0"
+    react-native: "npm:0.81.5"
+    react-native-builder-bob: "npm:^0.40.17"
+    react-native-monorepo-config: "npm:^0.3.1"
+    react-native-web: "npm:~0.21.0"
+  languageName: unknown
+  linkType: soft
 
 "react-native-task-queue@workspace:.":
   version: 0.0.0-use.local

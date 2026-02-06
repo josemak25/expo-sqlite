@@ -22,7 +22,7 @@ A robust, flexible, and type-safe job queue system for Expo and React Native app
 
 ## 🏗 Architecture Overview
 
-`expo-queue` follows a modular design inspired by industrial messaging systems, optimized for the mobile environment.
+`react-native-task-queue` follows a modular design inspired by industrial messaging systems, optimized for the mobile environment.
 
 - **Job Registry**: Manages worker registrations and job-to-worker mapping.
 - **Job Processor**: The central orchestrator handling concurrency, backoff windows, and scheduling loops.

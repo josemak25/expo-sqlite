@@ -1,6 +1,6 @@
 # MMKV Adapter Guide
 
-[MMKV](https://github.com/mrousavy/react-native-mmkv) is an ultra-fast, synchronous key-value storage framework. Using MMKV as an adapter for `expo-queue` is ideal for apps that require high-performance job persistence with minimal overhead.
+[MMKV](https://github.com/mrousavy/react-native-mmkv) is an ultra-fast, synchronous key-value storage framework. Using MMKV as an adapter for `react-native-task-queue` is ideal for apps that require high-performance job persistence with minimal overhead.
 
 ## Implementation
 
@@ -8,10 +8,10 @@ Create a file named `MMKVAdapter.ts` in your project and paste the following imp
 
 ```typescript
 import { MMKV } from 'react-native-mmkv';
-import { Adapter, Job } from 'expo-queue';
+import { Adapter, Job } from 'react-native-task-queue';
 
 /**
- * A high-performance MMKV adapter for expo-queue.
+ * A high-performance MMKV adapter for react-native-task-queue.
  * This adapter persists jobs synchronously but handles the Adapter interface's
  * async signatures to remain compatible with the core engine.
  */
@@ -122,7 +122,7 @@ export class MMKVAdapter implements Adapter {
 To use the adapter, simply pass it to the `Queue` constructor:
 
 ```typescript
-import { Queue } from 'expo-queue';
+import { Queue } from 'react-native-task-queue';
 import { MMKVAdapter } from './MMKVAdapter';
 
 // Create the adapter with a unique namespace

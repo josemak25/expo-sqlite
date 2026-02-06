@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "ExpoQueue Example",
-    "slug": "expo-queue-example",
+    "slug": "react-native-task-queue-example",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
