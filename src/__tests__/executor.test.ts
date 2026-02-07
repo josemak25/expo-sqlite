@@ -3,6 +3,7 @@ import { JobExecutor } from '../executor';
 import { Worker } from '../worker';
 import { createJob } from '../utils/helpers';
 import type { Adapter } from '../types';
+import { MemoryAdapter } from '../jest/mock';
 
 describe('JobExecutor', () => {
   let executor: JobExecutor;
@@ -10,16 +11,7 @@ describe('JobExecutor', () => {
   let emitter: EventEmitter;
 
   beforeEach(() => {
-    adapter = {
-      updateJob: jest.fn().mockResolvedValue(undefined),
-      removeJob: jest.fn().mockResolvedValue(undefined),
-      addJob: jest.fn(),
-      getConcurrentJobs: jest.fn(),
-      getJob: jest.fn(),
-      getJobs: jest.fn(),
-      deleteAll: jest.fn(),
-      moveToDLQ: jest.fn().mockResolvedValue(undefined),
-    } as any;
+    adapter = new MemoryAdapter() as jest.Mocked<Adapter>;
     emitter = new EventEmitter();
     executor = new JobExecutor({ adapter, emitter });
   });

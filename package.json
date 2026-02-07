@@ -20,6 +20,11 @@
       "types": "./lib/typescript/src/adapters/async-storage.d.ts",
       "default": "./lib/module/adapters/async-storage.js"
     },
+    "./jest/mock": {
+      "source": "./src/jest/mock.ts",
+      "types": "./lib/typescript/src/jest/mock.d.ts",
+      "default": "./lib/module/jest/mock.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
