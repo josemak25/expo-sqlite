@@ -1,11 +1,7 @@
 import { Queue } from '../queue';
 import { MemoryAdapter } from '../adapters/memory';
 import { createJob } from '../utils/helpers';
-
-jest.mock('@react-native-community/netinfo', () => ({
-  addEventListener: jest.fn(),
-  fetch: jest.fn().mockResolvedValue({ isConnected: true }),
-}));
+import '../jest/mock';
 
 describe('Queue Integration', () => {
   let queue: Queue;

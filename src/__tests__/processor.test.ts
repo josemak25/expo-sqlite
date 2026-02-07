@@ -3,18 +3,9 @@ import { JobRegistry } from '../registry';
 import { JobExecutor } from '../executor';
 import { createJob } from '../utils/helpers';
 import type { Adapter } from '../types';
+import { MemoryAdapter } from '../jest/mock';
 import EventEmitter from 'eventemitter3';
 import NetInfo from '@react-native-community/netinfo';
-
-// Mock NetInfo directly in the factory
-jest.mock('@react-native-community/netinfo', () => ({
-  fetch: jest.fn().mockResolvedValue({ isConnected: true }),
-  addEventListener: jest.fn().mockReturnValue(jest.fn()),
-  default: {
-    fetch: jest.fn().mockResolvedValue({ isConnected: true }),
-    addEventListener: jest.fn().mockReturnValue(jest.fn()),
-  },
-}));
 
 describe('JobProcessor', () => {
   let processor: JobProcessor;
@@ -25,15 +16,10 @@ describe('JobProcessor', () => {
 
   beforeEach(() => {
     jest.useFakeTimers();
-    adapter = {
-      getConcurrentJobs: jest.fn().mockResolvedValue([]),
-      updateJob: jest.fn().mockResolvedValue(undefined),
-      removeJob: jest.fn().mockResolvedValue(undefined),
-      deleteAll: jest.fn().mockResolvedValue(undefined),
-    } as any;
     registry = new JobRegistry();
     emitter = new EventEmitter();
     executor = new JobExecutor({ adapter, emitter });
+    adapter = new MemoryAdapter() as jest.Mocked<Adapter>;
     // Spy on executor.execute to prevent it from actually running
     jest.spyOn(executor, 'execute').mockResolvedValue(undefined);
 
