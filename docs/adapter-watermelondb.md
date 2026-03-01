@@ -20,6 +20,8 @@ export default appSchema({
         { name: 'payload', type: 'string' }, // Stringified JSON
         { name: 'data', type: 'string' }, // Stringified JobOptions JSON
         { name: 'priority', type: 'number' },
+        { name: 'attempts', type: 'number' },
+        { name: 'maxAttempts', type: 'number' },
         { name: 'active', type: 'boolean' },
         { name: 'timeout', type: 'number' },
         { name: 'created', type: 'string' },
@@ -46,6 +48,8 @@ export default class JobModel extends Model {
   @text('payload') payload!: string;
   @text('data') data!: string;
   @field('priority') priority!: number;
+  @field('attempts') attempts!: number;
+  @field('maxAttempts') maxAttempts!: number;
   @field('active') active!: boolean;
   @field('timeout') timeout!: number;
   @text('created') created!: string;
@@ -79,16 +83,11 @@ export class WatermelonAdapter implements Adapter {
         entry.name = job.name;
         entry.payload = JSON.stringify(job.payload);
         entry.data = JSON.stringify(
-          pick(job, [
-            'attempts',
-            'maxAttempts',
-            'timeInterval',
-            'ttl',
-            'onlineOnly',
-            'metaData',
-          ])
+          pick(job, ['timeInterval', 'ttl', 'onlineOnly', 'metaData'])
         );
         entry.priority = job.priority;
+        entry.attempts = job.attempts || 0;
+        entry.maxAttempts = job.maxAttempts || 1;
         entry.active = job.active;
         entry.timeout = job.timeout;
         entry.created = job.created;
@@ -139,15 +138,10 @@ export class WatermelonAdapter implements Adapter {
         e.active = job.active;
         e.failed = job.failed || null;
         e.data = JSON.stringify(
-          pick(job, [
-            'attempts',
-            'maxAttempts',
-            'timeInterval',
-            'ttl',
-            'onlineOnly',
-            'metaData',
-          ])
+          pick(job, ['timeInterval', 'ttl', 'onlineOnly', 'metaData'])
         );
+        e.attempts = job.attempts || 0;
+        e.maxAttempts = job.maxAttempts || 1;
       });
     });
   }
@@ -228,8 +222,8 @@ export class WatermelonAdapter implements Adapter {
       id: entry.id, // Explicitly map UUID
       payload: JSON.parse(entry.payload),
       active: !!entry.active,
-      attempts: data.attempts ?? 0,
-      maxAttempts: data.maxAttempts || 1,
+      attempts: entry.attempts ?? data.attempts ?? 0,
+      maxAttempts: entry.maxAttempts ?? data.maxAttempts ?? 1,
       timeInterval: data.timeInterval || 0,
       ttl: data.ttl || 1000 * 60 * 60 * 24 * 7,
     } as Job<unknown>;

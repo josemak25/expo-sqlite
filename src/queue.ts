@@ -12,15 +12,24 @@ import { JobExecutor } from './executor';
 import { JobProcessor } from './processor';
 import { createJob } from './utils/helpers';
 
+declare global {
+  var __TASK_QUEUE_INSTANCES__: Map<string, Queue>;
+}
+
+// Transparent singleton handling
+if (!globalThis.__TASK_QUEUE_INSTANCES__) {
+  globalThis.__TASK_QUEUE_INSTANCES__ = new Map<string, Queue>();
+}
+
 /**
  * The main Queue class responsible for managing jobs and workers.
  * Extends EventEmitter to provide lifecycle events (start, success, failure).
  */
 export class Queue extends EventEmitter<QueueEvents> {
-  private adapter: Adapter;
-  private registry: JobRegistry;
-  private executor: JobExecutor;
-  private processor: JobProcessor;
+  private adapter!: Adapter;
+  private registry!: JobRegistry;
+  private executor!: JobExecutor;
+  private processor!: JobProcessor;
   private isStarting: boolean = false;
 
   /**
@@ -30,6 +39,16 @@ export class Queue extends EventEmitter<QueueEvents> {
    */
   constructor(adapter?: Adapter, options: QueueOptions = {}) {
     super();
+
+    // Simple stable identifier for the singleton check based on the adapter type
+    const instanceKey = adapter ? adapter.constructor.name : 'MemoryAdapter';
+
+    if (globalThis.__TASK_QUEUE_INSTANCES__.has(instanceKey)) {
+      // If we already have a queue in memory for this configuration, return it immediately
+      // This is crucial for fixing the "split brain" / multi-instance overlapping queue issue in React Native
+      return globalThis.__TASK_QUEUE_INSTANCES__.get(instanceKey) as this;
+    }
+
     this.adapter = adapter || new MemoryAdapter();
     this.registry = new JobRegistry();
     this.executor = new JobExecutor({
@@ -44,6 +63,9 @@ export class Queue extends EventEmitter<QueueEvents> {
       concurrency: options.concurrency || 1,
       monitorNetwork: !!options.monitorNetwork,
     });
+
+    // Register instance in global registry
+    globalThis.__TASK_QUEUE_INSTANCES__.set(instanceKey, this);
   }
 
   /**

@@ -10,6 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Initial implementation of react-native-task-queue
+- **Queue**: Transparent global singleton registry (`globalThis.__TASK_QUEUE_INSTANCES__`) to prevent "Split Brain" queue duplication on Fast Refresh.
+- **SQLiteAdapter**: Native SQL-level filtering for `attempts` via dedicated DB columns schema updates.
+- **SQLiteAdapter**: Fully enclosed write operations with `withTransactionAsync` and `withExclusiveTransactionAsync` to eliminate lock contention.
+- **Processor**: Graceful missing worker handling: Unclaiming jobs instead of failing them when workers are unavailable.
+- **Processor**: Enhanced verbose console diagnostics for skips involving Network, TTL, and Backoff windows.
+
+### Changed
+
 - SQLite adapter for persistent storage with atomic claiming
 - AsyncStorage adapter for lightweight persistence
 - In-memory adapter for testing

@@ -20,6 +20,8 @@ const mockDb = {
         timeout: params[6],
         created: params[7],
         failed: params[8],
+        attempts: params[9] || 0,
+        maxAttempts: params[10] || 1,
       };
       const idx = mockRows.findIndex((r) => r.id === row.id);
       if (idx > -1) mockRows[idx] = row;
@@ -61,12 +63,16 @@ const mockDb = {
     }
 
     if (sqlLower.includes('update')) {
-      const id = params[3];
+      const id = params[params.length - 1];
       const row = mockRows.find((r) => r.id === id);
       if (row) {
         row.active = params[0];
         row.failed = params[1];
         row.data = params[2];
+        if (params.length > 4) {
+          row.attempts = params[3];
+          row.maxAttempts = params[4];
+        }
       }
     }
 
@@ -78,7 +84,12 @@ const mockDb = {
     let result = [...mockRows];
 
     if (sqlLower.includes('where active = 0')) {
-      result = result.filter((r) => r.active === 0);
+      result = result.filter((r) => r.active === 0 || r.active === false);
+
+      // Simulate attempts filtering
+      if (sqlLower.includes('attempts < maxattempts')) {
+        result = result.filter((r) => (r.attempts || 0) < (r.maxAttempts || 1));
+      }
     }
 
     if (sqlLower.includes('where id =')) {
@@ -115,6 +126,13 @@ const mockDb = {
         runAsync: mockDb.runAsync,
       });
     }),
+
+  withTransactionAsync: jest.fn().mockImplementation(async (callback) => {
+    return await callback({
+      getAllAsync: mockDb.getAllAsync,
+      runAsync: mockDb.runAsync,
+    });
+  }),
 };
 
 export const openDatabaseSync = jest.fn().mockReturnValue(mockDb);

@@ -9,6 +9,7 @@ describe('Queue Integration', () => {
 
   beforeEach(() => {
     jest.useFakeTimers();
+    globalThis.__TASK_QUEUE_INSTANCES__ = new Map();
     adapter = new MemoryAdapter();
     queue = new Queue(adapter, { concurrency: 2 });
   });
@@ -114,5 +115,19 @@ describe('Queue Integration', () => {
 
     await jest.advanceTimersByTimeAsync(500);
     expect(workerFn).not.toHaveBeenCalled();
+  });
+
+  it('should reuse existing instance for same adapter key (Fast Refresh fix)', () => {
+    // Both use MemoryAdapter
+    const adapter1 = new MemoryAdapter();
+    const adapter2 = new MemoryAdapter();
+
+    // First queue adds itself to the global registry
+    const queue1 = new Queue(adapter1);
+
+    // Second queue should return the EXACT SAME instance from the registry
+    const queue2 = new Queue(adapter2);
+
+    expect(queue1).toBe(queue2);
   });
 });

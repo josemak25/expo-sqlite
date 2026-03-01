@@ -76,6 +76,24 @@ describe('SQLiteAdapter', () => {
     }
   });
 
+  it('should not fetch jobs that have reached maxAttempts natively', async () => {
+    const deadJob = createJob('dead_test', {});
+    deadJob.attempts = 3;
+    deadJob.maxAttempts = 3; // Exhausted
+
+    const liveJob = createJob('live_test', {});
+    liveJob.attempts = 1;
+    liveJob.maxAttempts = 3; // Ready
+
+    await adapter.addJob(deadJob);
+    await adapter.addJob(liveJob);
+
+    // If limits failed, it would pull deadJob since it is first/created earlier.
+    const batch = await adapter.getConcurrentJobs(2);
+    expect(batch).toHaveLength(1);
+    expect(batch[0]?.id).toBe(liveJob.id);
+  });
+
   it('should clear all jobs', async () => {
     await adapter.addJob(createJob('test', {}));
     await adapter.deleteAll();
