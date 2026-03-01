@@ -1,6 +1,6 @@
 {
   "name": "react-native-task-queue",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A robust, type-safe job queue for React Native and Expo with SQLite persistence, retry logic, and background processing",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
