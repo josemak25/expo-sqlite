@@ -16,6 +16,7 @@ export class SQLiteAdapter implements Adapter {
 
   private async init(): Promise<void> {
     await this.db.execAsync(`
+      PRAGMA busy_timeout = 5000;
       CREATE TABLE IF NOT EXISTS ${this.tableName} (
         id TEXT PRIMARY KEY NOT NULL,
         name TEXT NOT NULL,
@@ -25,37 +26,41 @@ export class SQLiteAdapter implements Adapter {
         active INTEGER DEFAULT 0,
         timeout INTEGER DEFAULT 25000,
         created TEXT NOT NULL,
-        failed TEXT
+        failed TEXT,
+        attempts INTEGER DEFAULT 0,
+        maxAttempts INTEGER DEFAULT 1
       );
     `);
   }
 
   async addJob<T = unknown>(job: Job<T>): Promise<void> {
     await this.initPromise;
-    await this.db.runAsync(
-      `INSERT OR REPLACE INTO ${this.tableName} (id, name, payload, data, priority, active, timeout, created, failed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        job.id,
-        job.name,
-        JSON.stringify(job.payload),
-        JSON.stringify(
-          pick(job, [
-            'ttl',
-            'metaData',
-            'attempts',
-            'workerName',
-            'onlineOnly',
-            'maxAttempts',
-            'timeInterval',
-          ])
-        ),
-        job.priority,
-        job.active ? 1 : 0,
-        job.timeout,
-        job.created,
-        job.failed || null,
-      ]
-    );
+    await this.db.withTransactionAsync(async () => {
+      await this.db.runAsync(
+        `INSERT OR REPLACE INTO ${this.tableName} (id, name, payload, data, priority, active, timeout, created, failed, attempts, maxAttempts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          job.id,
+          job.name,
+          JSON.stringify(job.payload),
+          JSON.stringify(
+            pick(job, [
+              'ttl',
+              'metaData',
+              'workerName',
+              'onlineOnly',
+              'timeInterval',
+            ])
+          ),
+          job.priority,
+          job.active ? 1 : 0,
+          job.timeout,
+          job.created,
+          job.failed || null,
+          job.attempts || 0,
+          job.maxAttempts || 1,
+        ]
+      );
+    });
   }
 
   async getConcurrentJobs(limit: number = 1): Promise<Job<unknown>[]> {
@@ -70,13 +75,11 @@ export class SQLiteAdapter implements Adapter {
     // before we have claimed them, preventing double-processing.
     await this.db.withExclusiveTransactionAsync(async (tx) => {
       const result = await tx.getAllAsync<JobRow>(
-        `SELECT * FROM ${this.tableName} WHERE active = 0 ORDER BY priority DESC, created ASC LIMIT ?`,
+        `SELECT * FROM ${this.tableName} WHERE active = 0 AND attempts < maxAttempts ORDER BY priority DESC, created ASC LIMIT ?`,
         [limit]
       );
 
-      const mappedJobs = result
-        .map((row) => this.mapRowToJob(row))
-        .filter((job) => job.attempts < job.maxAttempts);
+      const mappedJobs = result.map((row) => this.mapRowToJob(row));
 
       if (mappedJobs.length > 0) {
         // Mark all claimed jobs as active=1
@@ -99,32 +102,36 @@ export class SQLiteAdapter implements Adapter {
 
   async updateJob<T = unknown>(job: Job<T>): Promise<void> {
     await this.initPromise;
-    await this.db.runAsync(
-      `UPDATE ${this.tableName} SET active = ?, failed = ?, data = ? WHERE id = ?`,
-      [
-        job.active ? 1 : 0,
-        job.failed || null,
-        JSON.stringify(
-          pick(job, [
-            'attempts',
-            'maxAttempts',
-            'timeInterval',
-            'ttl',
-            'onlineOnly',
-            'workerName',
-            'metaData',
-          ])
-        ),
-        job.id,
-      ]
-    );
+    await this.db.withTransactionAsync(async () => {
+      await this.db.runAsync(
+        `UPDATE ${this.tableName} SET active = ?, failed = ?, data = ?, attempts = ?, maxAttempts = ? WHERE id = ?`,
+        [
+          job.active ? 1 : 0,
+          job.failed || null,
+          JSON.stringify(
+            pick(job, [
+              'timeInterval',
+              'ttl',
+              'onlineOnly',
+              'workerName',
+              'metaData',
+            ])
+          ),
+          job.attempts || 0,
+          job.maxAttempts || 1,
+          job.id,
+        ]
+      );
+    });
   }
 
   async removeJob<T = unknown>(job: Job<T>): Promise<void> {
     await this.initPromise;
-    await this.db.runAsync(`DELETE FROM ${this.tableName} WHERE id = ?`, [
-      job.id,
-    ]);
+    await this.db.withTransactionAsync(async () => {
+      await this.db.runAsync(`DELETE FROM ${this.tableName} WHERE id = ?`, [
+        job.id,
+      ]);
+    });
   }
 
   async getJob(id: string): Promise<Job<unknown> | null> {
@@ -159,26 +166,29 @@ export class SQLiteAdapter implements Adapter {
    */
   async recover(): Promise<void> {
     await this.initPromise;
-    await this.db.runAsync(
-      `UPDATE ${this.tableName} SET active = 0 WHERE active = 1`
-    );
+    await this.db.withTransactionAsync(async () => {
+      await this.db.runAsync(
+        `UPDATE ${this.tableName} SET active = 0 WHERE active = 1`
+      );
+    });
   }
 
   private mapRowToJob(row: JobRow): Job<unknown> {
     const data = JSON.parse(row.data || '{}') as JobOptions & {
-      maxAttempts?: number;
       workerName?: string;
+      maxAttempts?: number;
+      attempts?: number;
     };
 
     return {
       ...omit(row, ['data']),
       ...data,
       active: !!row.active,
-      attempts: data.attempts ?? 0,
       payload: JSON.parse(row.payload),
-      maxAttempts: data.maxAttempts || 1,
       timeInterval: data.timeInterval || 0,
       ttl: data.ttl || 1000 * 60 * 60 * 24 * 7, // Default 7 days
+      attempts: row.attempts ?? data.attempts ?? 0,
+      maxAttempts: row.maxAttempts ?? data.maxAttempts ?? 1,
     } as Job<unknown>;
   }
 }
