@@ -39,7 +39,10 @@ export class MMKVAdapter implements Adapter {
   async getConcurrentJobs(limit: number = 1): Promise<Job<unknown>[]> {
     const jobs = this.getJobsFromStorage();
     const readyJobs = jobs
-      .filter((j) => !j.active && !j.failed)
+      .filter(
+        (j) =>
+          !j.active && !j.failed && (j.attempts || 0) < (j.maxAttempts || 1)
+      )
       .sort((a, b) => b.priority - a.priority)
       .slice(0, limit);
 

@@ -24,6 +24,7 @@ A robust, flexible, and type-safe job queue system for Expo and React Native app
 
 `react-native-task-queue` follows a modular design inspired by industrial messaging systems, optimized for the mobile environment.
 
+- **Queue Singleton**: Defends against React Native "Split Brain" by sharing a transparent global instance mapper based on adapter keys across Fast Refresh lifecycles.
 - **Job Registry**: Manages worker registrations and job-to-worker mapping.
 - **Job Processor**: The central orchestrator handling concurrency, backoff windows, and scheduling loops.
 - **Job Executor**: Manages the lifecycle of a single job attempt (Timeout, Success, Failure).
@@ -66,7 +67,7 @@ Choose the persistence layer that fits your app's needs.
 
 ### SQLite (Recommended)
 
-Atomic, reliable, and highly performant. Best for critical background tasks.
+Atomic, reliable, and highly performant. Best for critical background tasks. The SQLite adapter utilizes **SQL-Level Filtering** (filtering maximum attempts natively via SQL rather than in-memory arrays) and bounds all write operations with **`withTransactionAsync`** to avoid lock contention under heavy concurrency.
 
 ```typescript
 import { Queue } from 'react-native-task-queue';
@@ -163,7 +164,8 @@ Main entry point.
 
 ## 🔋 Performance & Reliability
 
-- **Atomic Claiming**: SQLite and other adapters use row-level locking or transactions to prevent duplicate processing.
+- **Atomic Claiming**: SQLite and adapters use row-level locking or exclusive transactions (`withExclusiveTransactionAsync`) to prevent duplicate processing.
+- **Graceful Execution**: Unclaimed jobs dropped due to missing workers are placed back into the queue cleanly instead of prematurely failing your attempts limits.
 - **Memory Safety**: Uses memory-efficient pagination even if you have 10,000 jobs in the queue.
 - **Crash Recovery**: Auto-resets "ghost jobs" (active jobs from a previous session) on startup.
 

@@ -181,13 +181,11 @@ export class JobProcessor {
 
       const worker = this.registry.getWorker(job.name);
       if (!worker) {
-        // Record failure due to missing worker
-        job.failed = new Date().toISOString();
-        job.active = false;
-        if (job.metaData) {
-          job.metaData.lastError = 'No worker found';
-        }
-        await this.adapter.updateJob(job);
+        // Gracefully skip and unclaim if worker is missing.
+        // This allows other instances (or this one later) to pick it up.
+        await unclaim(job);
+        hasSkippedBackoff = true; // Trigger a retry delay
+        nextBackoffDelay = Math.min(nextBackoffDelay, 5000); // Wait 5s before retrying missing workers
         continue;
       }
 

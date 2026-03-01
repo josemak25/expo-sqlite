@@ -190,6 +190,10 @@ export interface JobRow {
   created: string;
   /** Failure timestamp (ISO string) or null. */
   failed: string | null;
+  /** Number of attempts (added in migration) */
+  attempts?: number;
+  /** Max attempts allowed (added in migration) */
+  maxAttempts?: number;
 }
 
 /**
